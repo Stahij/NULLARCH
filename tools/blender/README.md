@@ -15,7 +15,7 @@ mkdir -p assets/3d
 blender --background --python tools/blender/create_jarvis_core.py -- --output assets/3d/jarvis_core.glb
 ```
 
-The script creates a blue energy sphere, a subtle inner glow, suspended sparks and broken organic plasma filaments. It intentionally does not create closed orbital rings.
+The script creates a blue energy sphere, a subtle inner glow, suspended sparks and broken organic plasma filaments. It intentionally does not create closed orbital rings. Materials use glTF-compatible Principled BSDF values; the filament curves are converted to meshes before export so they survive GLB export.
 
 ## Current integration status
 
