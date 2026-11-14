@@ -99,7 +99,15 @@ class LauncherActivity : Activity() {
             setTextColor(cyan)
             setOnClickListener { dialog.dismiss() }
         }
-        heading.addView(close, LinearLayout.LayoutParams(dp(48), dp(48)))
+        val help = TextView(this).apply {
+            text = "?"
+            textSize = 20f
+            gravity = Gravity.CENTER
+            setTextColor(cyan)
+            setOnClickListener { showControlsGuide() }
+        }
+        heading.addView(help, LinearLayout.LayoutParams(dp(42), dp(48)))
+        heading.addView(close, LinearLayout.LayoutParams(dp(42), dp(48)))
         panel.addView(heading)
 
         val search = EditText(this).apply {
