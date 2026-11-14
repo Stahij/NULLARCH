@@ -8,6 +8,7 @@ import android.view.Surface
 import android.view.SurfaceView
 import com.google.android.filament.Camera
 import com.google.android.filament.Engine
+import com.google.android.filament.EntityManager
 import com.google.android.filament.Filament
 import com.google.android.filament.Renderer
 import com.google.android.filament.Scene
@@ -121,7 +122,7 @@ class FilamentSpikeActivity : Activity() {
             engine.destroyView(filamentView)
             engine.destroyScene(scene)
             engine.destroyCameraComponent(camera.entity)
-            engine.entityManager.destroy(camera.entity)
+            EntityManager.get().destroy(camera.entity)
             engine.destroyRenderer(renderer)
             engine.destroy()
         }
