@@ -293,7 +293,18 @@ class AtomWorkspaceView(
             }
             MotionEvent.ACTION_UP -> {
                 if (selected == null) {
-                    gestureDetector.onTouchEvent(event)
+                    val dx = event.x - downX
+                    val dy = event.y - downY
+                    val horizontalSwipe = abs(dx) > 55f * density && abs(dx) > abs(dy)
+                    val verticalSwipe = dy < -55f * density &&
+                        abs(dy) > abs(dx) &&
+                        downY > 56f * density &&
+                        downY < height - 64f * density
+                    when {
+                        horizontalSwipe -> changePage(if (dx < 0f) 1 else -1)
+                        verticalSwipe -> onOpenDrawer()
+                        else -> gestureDetector.onTouchEvent(event)
+                    }
                 } else {
                     if (!dragging) selected?.let { launch(it.app) }
                     if (dragging) saveLayout()
