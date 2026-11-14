@@ -40,7 +40,7 @@ class FilamentSpikeActivity : Activity() {
     private var resumed = false
 
     private val choreographer by lazy { Choreographer.getInstance() }
-    private val frameCallback = Choreographer.FrameCallback { frameTimeNanos ->
+    private val frameCallback: Choreographer.FrameCallback = Choreographer.FrameCallback { frameTimeNanos ->
         if (resumed && uiHelper.isReadyToRender) {
             val target = swapChain
             if (target != null && renderer.beginFrame(target, frameTimeNanos)) {
