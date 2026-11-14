@@ -129,6 +129,16 @@ class AtomWorkspaceView(
         invalidate()
     }
 
+    fun resumeMotion() {
+        running = true
+        invalidate()
+    }
+
+    fun pauseMotion() {
+        running = false
+        invalidate()
+    }
+
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         val w = width.toFloat()
