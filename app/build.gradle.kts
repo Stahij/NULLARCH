@@ -48,6 +48,9 @@ android {
             signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = false
         }
+        getByName("debug") {
+            applicationIdSuffix = ".debug"
+        }
     }
 
     externalNativeBuild {
@@ -62,4 +65,9 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
+}
+
+// Filament stays isolated in Debug until the renderer spike passes device tests.
+dependencies {
+    debugImplementation("com.google.android.filament:filament-android:1.80.1")
 }
