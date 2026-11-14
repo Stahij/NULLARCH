@@ -142,7 +142,7 @@ jobs:
       # Keep the release branch suffix aligned with app/build.gradle.kts versionName.
       - name: Resolve release tag from app version
         id: release_tag
-        if: startsWith(github.ref, 'refs/heads/release/') || github.ref == 'refs/heads/main'
+        if: startsWith(github.ref, 'refs/heads/release/')
         run: |
           APP_VERSION="$(sed -n 's/^[[:space:]]*versionName = "\([^"]*\)".*/\1/p' app/build.gradle.kts | head -n1)"
           BRANCH_VERSION="${GITHUB_REF_NAME#release/}"
