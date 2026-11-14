@@ -27,6 +27,7 @@ root = bpy.data.objects.new("JarvisCore_Root", None)
 bpy.context.collection.objects.link(root)
 
 def make_energy_material(name, color_a, color_b, strength):
+    """Use glTF-compatible Principled BSDF values; procedural Blender nodes do not export reliably."""
     mat = bpy.data.materials.new(name)
     mat.diffuse_color = (*color_b, 1.0)
     mat.use_nodes = True
@@ -36,35 +37,17 @@ def make_energy_material(name, color_a, color_b, strength):
 
     out = nodes.new("ShaderNodeOutputMaterial")
     principled = nodes.new("ShaderNodeBsdfPrincipled")
-    principled.inputs["Metallic"].default_value = 0.38
-    principled.inputs["Roughness"].default_value = 0.28
-    if "Emission Color" in principled.inputs:
-        principled.inputs["Emission Color"].default_value = (*color_b, 1.0)
-        principled.inputs["Emission Strength"].default_value = strength
-    else:
-        principled.inputs["Emission"].default_value = (*color_b, 1.0)
-        principled.inputs["Emission Strength"].default_value = strength
+    principled.inputs["Base Color"].default_value = (*color_a, 1.0)
+    principled.inputs["Metallic"].default_value = 0.32
+    principled.inputs["Roughness"].default_value = 0.24
 
-    tex = nodes.new("ShaderNodeTexNoise")
-    tex.inputs["Scale"].default_value = 3.7
-    tex.inputs["Detail"].default_value = 7.0
-    tex.inputs["Roughness"].default_value = 0.72
+    emission_color = principled.inputs.get("Emission Color") or principled.inputs.get("Emission")
+    if emission_color:
+        emission_color.default_value = (*color_b, 1.0)
+    emission_strength = principled.inputs.get("Emission Strength")
+    if emission_strength:
+        emission_strength.default_value = strength
 
-    ramp = nodes.new("ShaderNodeValToRGB")
-    ramp.color_ramp.elements[0].position = 0.22
-    ramp.color_ramp.elements[0].color = (*color_a, 1.0)
-    ramp.color_ramp.elements[1].position = 0.78
-    ramp.color_ramp.elements[1].color = (*color_b, 1.0)
-
-    bump = nodes.new("ShaderNodeBump")
-    bump.inputs["Strength"].default_value = 0.18
-    bump.inputs["Distance"].default_value = 0.045
-
-    links.new(tex.outputs["Fac"], ramp.inputs["Fac"])
-    links.new(ramp.outputs["Color"], principled.inputs["Base Color"])
-    links.new(ramp.outputs["Color"], principled.inputs.get("Emission Color") or principled.inputs.get("Emission"))
-    links.new(tex.outputs["Fac"], bump.inputs["Height"])
-    links.new(bump.outputs["Normal"], principled.inputs["Normal"])
     links.new(principled.outputs["BSDF"], out.inputs["Surface"])
     return mat
 
@@ -152,6 +135,10 @@ for strand_index in range(5):
     bpy.context.collection.objects.link(obj)
     obj.data.materials.append(plasma_mat)
     obj.parent = root
+    bpy.context.view_layer.objects.active = obj
+    obj.select_set(True)
+    bpy.ops.object.convert(target="MESH")
+    obj.select_set(False)
 
 # Keep the root selected so export includes only the Jarvis asset.
 bpy.ops.object.select_all(action="DESELECT")
