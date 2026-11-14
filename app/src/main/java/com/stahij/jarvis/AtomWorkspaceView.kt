@@ -4,17 +4,20 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
-import android.graphics.RectF
 import android.graphics.RadialGradient
+import android.graphics.RectF
 import android.graphics.Shader
 import android.graphics.Typeface
 import android.graphics.drawable.Drawable
 import android.os.SystemClock
 import android.view.MotionEvent
 import android.view.View
+import kotlin.math.abs
+import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.sin
+import kotlin.math.sqrt
 
 data class LauncherApp(
     val label: String,
@@ -50,12 +53,10 @@ class AtomWorkspaceView(
     private var page = 0
     private var pageCount = 1
     private var running = true
-    private var freezeUntil = 0L
     private var downX = 0f
     private var downY = 0f
     private var selected: OrbitalItem? = null
     private var dragging = false
-    private var lastFrame = 0L
     private val stars = List(64) { i ->
         val x = ((i * 73 + 19) % 997) / 997f
         val y = ((i * 137 + 41) % 991) / 991f
@@ -68,8 +69,10 @@ class AtomWorkspaceView(
         loadLayout()
     }
 
+    // A fresh v2 layout intentionally starts empty; installed apps are never
+    // placed on the user's workspace without an explicit choice.
     private fun loadLayout() {
-        val saved = prefs.getString("layout_v1", null)
+        val saved = prefs.getString("layout_v2", null)
         val savedMap = HashMap<String, Triple<Float, Float, Int>>()
         if (saved != null) {
             try {
@@ -84,44 +87,45 @@ class AtomWorkspaceView(
                 }
             } catch (_: Exception) { }
         }
-        val pageSize = 12
-        installedApps.forEachIndexed { index, app ->
-            val id = app.packageName + "/" + app.className
-            val old = savedMap[id]
-            val targetPage = old?.third ?: (index / pageSize)
-            val inPage = index % pageSize
-            val angle = old?.first ?: ((inPage.toFloat() / pageSize) * (Math.PI * 2.0)).toFloat()
-            val orbit = old?.second ?: (0.25f + (inPage % 3) * 0.095f)
-            items.add(OrbitalItem(app, angle, orbit.coerceIn(.20f, .44f), targetPage.coerceAtLeast(0)))
+
+        val appsById = installedApps.associateBy { it.packageName + "/" + it.className }
+        savedMap.forEach { (id, position) ->
+            val app = appsById[id] ?: return@forEach
+            items.add(OrbitalItem(
+                app,
+                position.first,
+                position.second.coerceIn(.20f, .44f),
+                position.third.coerceAtLeast(0)
+            ))
         }
-        pageCount = maxOf(1, (items.maxOfOrNull { it.page } ?: 0) + 1, (installedApps.size + pageSize - 1) / pageSize)
-        page = prefs.getInt("current_page", 0).coerceIn(0, pageCount - 1)
+        pageCount = maxOf(1, (items.maxOfOrNull { it.page } ?: 0) + 1)
+        page = prefs.getInt("current_page_v2", 0).coerceIn(0, pageCount - 1)
         onPageChanged(page, pageCount)
+    }
+
+    fun addApp(app: LauncherApp): Boolean {
+        val id = app.packageName + "/" + app.className
+        if (items.any { it.app.packageName + "/" + it.app.className == id }) return false
+        val pageItems = items.count { it.page == page }
+        val angle = ((pageItems % 8).toFloat() / 8f * (Math.PI * 2.0)).toFloat()
+        val orbit = (.25f + (pageItems % 3) * .075f).coerceIn(.20f, .44f)
+        items.add(OrbitalItem(app, angle, orbit, page))
+        saveLayout()
+        invalidate()
+        return true
     }
 
     fun changePage(delta: Int) {
-        if (pageCount <= 1 && delta > 0) {
-            pageCount++
-        }
+        if (delta > 0 && page == pageCount - 1) pageCount++
         page = (page + delta).coerceIn(0, pageCount - 1)
-        prefs.edit().putInt("current_page", page).apply()
+        prefs.edit().putInt("current_page_v2", page).apply()
         onPageChanged(page, pageCount)
         invalidate()
     }
 
-    fun restoreSavedPositions() {
-        freezeUntil = SystemClock.uptimeMillis() + 3500L
-        invalidate()
-    }
-
-    fun resumeMotion() {
-        running = true
-        lastFrame = 0L
-        invalidate()
-    }
-
-    fun pauseMotion() {
-        running = false
+    // The core itself is the only motion control: tap to freeze/resume.
+    fun toggleMotion() {
+        running = !running
         invalidate()
     }
 
@@ -136,16 +140,15 @@ class AtomWorkspaceView(
         val cy = h * .49f
         val base = min(w, h)
         val now = SystemClock.uptimeMillis()
-        val frozen = now < freezeUntil || !running
-        val elapsed = if (frozen) 0f else now / 1000f
+        val elapsed = if (running) now / 1000f else 0f
+
         drawOrbit(canvas, cx, cy, base * .27f, -22f, 2.0f)
         drawOrbit(canvas, cx, cy, base * .37f, 54f, 1.5f)
         drawOrbit(canvas, cx, cy, base * .45f, -66f, 1.1f)
-        drawCore(canvas, cx, cy, base * .115f)
+        drawCore(canvas, cx, cy, base * .115f, elapsed)
 
-        val visible = items.filter { it.page == page }
-        visible.forEachIndexed { index, item ->
-            val angle = item.angle + if (frozen) 0f else elapsed * (.11f + (index % 4) * .012f)
+        items.filter { it.page == page }.forEachIndexed { index, item ->
+            val angle = item.angle + if (running) elapsed * (.11f + (index % 4) * .012f) else 0f
             val radius = base * item.orbit
             val x = cx + cos(angle.toDouble()).toFloat() * radius
             val y = cy + sin(angle.toDouble()).toFloat() * radius * .57f
@@ -171,7 +174,6 @@ class AtomWorkspaceView(
             textPaint.alpha = alpha
             canvas.drawText(item.app.label.take(16), x, y + iconSize * .78f + 12f * density, textPaint)
         }
-        drawPageDots(canvas, w, h)
         if (running) postInvalidateOnAnimation()
     }
 
@@ -194,17 +196,18 @@ class AtomWorkspaceView(
         canvas.restore()
     }
 
-    private fun drawCore(canvas: Canvas, cx: Float, cy: Float, radius: Float) {
+    private fun drawCore(canvas: Canvas, cx: Float, cy: Float, radius: Float, time: Float) {
+        val pulse = if (running) 1f + .035f * sin(time * 1.4f) else 1f
         paint.style = Paint.Style.FILL
         paint.shader = RadialGradient(
-            cx, cy, radius * 1.9f,
+            cx, cy, radius * 1.9f * pulse,
             intArrayOf(Color.argb(0, 31, 195, 255), Color.argb(48, 20, 175, 237), Color.argb(0, 4, 12, 28)),
             floatArrayOf(0f, .52f, 1f), Shader.TileMode.CLAMP
         )
-        canvas.drawCircle(cx, cy, radius * 1.9f, paint)
+        canvas.drawCircle(cx, cy, radius * 1.9f * pulse, paint)
         paint.shader = null
         paint.color = Color.argb(210, 16, 85, 119)
-        canvas.drawCircle(cx, cy, radius, paint)
+        canvas.drawCircle(cx, cy, radius * pulse, paint)
         paint.color = Color.argb(180, 78, 220, 255)
         paint.style = Paint.Style.STROKE
         paint.strokeWidth = 1.6f * density
@@ -220,16 +223,6 @@ class AtomWorkspaceView(
         paint.typeface = Typeface.DEFAULT
     }
 
-    private fun drawPageDots(canvas: Canvas, w: Float, h: Float) {
-        val totalWidth = pageCount * 13f * density
-        val start = (w - totalWidth) / 2f
-        for (i in 0 until pageCount) {
-            paint.color = if (i == page) Color.rgb(96, 220, 255) else Color.rgb(52, 79, 103)
-            canvas.drawCircle(start + i * 13f * density + 5f * density, h - 9f * density,
-                (if (i == page) 3f else 2f) * density, paint)
-        }
-    }
-
     override fun onTouchEvent(event: MotionEvent): Boolean {
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
@@ -242,34 +235,32 @@ class AtomWorkspaceView(
             MotionEvent.ACTION_MOVE -> {
                 val dx = event.x - downX
                 val dy = event.y - downY
-                if (selected != null && (kotlin.math.abs(dx) + kotlin.math.abs(dy) > 14f * density)) {
+                if (selected != null && abs(dx) + abs(dy) > 14f * density) {
                     dragging = true
                     val item = selected!!
                     val cx = width * .5f
                     val cy = height * .49f
                     val x = event.x - cx
                     val y = (event.y - cy) / .57f
-                    item.angle = kotlin.math.atan2(y, x)
-                    item.orbit = (kotlin.math.sqrt(x * x + y * y) / min(width, height)).coerceIn(.20f, .44f)
+                    item.angle = atan2(y, x)
+                    item.orbit = (sqrt(x * x + y * y) / min(width, height)).coerceIn(.20f, .44f)
                     item.rect.offsetTo(event.x - item.rect.width() / 2f, event.y - item.rect.height() / 2f)
-                    freezeUntil = SystemClock.uptimeMillis() + 1000L
                     invalidate()
                 }
                 return true
             }
             MotionEvent.ACTION_UP -> {
+                val dx = event.x - downX
                 if (!dragging && selected != null) {
                     selected?.let { launch(it.app) }
                 } else if (!dragging && selected == null) {
                     val cx = width * .5f
                     val cy = height * .49f
-                    val dx = event.x - cx
-                    val dy = event.y - cy
-                    if (kotlin.math.sqrt(dx * dx + dy * dy) < min(width, height) * .14f) {
-                        restoreSavedPositions()
-                    } else {
-                        val delta = event.x - downX
-                        if (kotlin.math.abs(delta) > 55f * density) changePage(if (delta < 0) 1 else -1)
+                    val distance = sqrt((event.x - cx) * (event.x - cx) + (event.y - cy) * (event.y - cy))
+                    if (distance < min(width, height) * .14f) {
+                        toggleMotion()
+                    } else if (abs(dx) > 55f * density) {
+                        changePage(if (dx < 0) 1 else -1)
                     }
                 }
                 if (dragging) saveLayout()
@@ -305,6 +296,6 @@ class AtomWorkspaceView(
                 put("page", item.page)
             })
         }
-        prefs.edit().putString("layout_v1", array.toString()).apply()
+        prefs.edit().putString("layout_v2", array.toString()).apply()
     }
 }
