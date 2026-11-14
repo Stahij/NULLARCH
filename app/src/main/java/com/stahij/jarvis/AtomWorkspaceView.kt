@@ -11,6 +11,7 @@ import android.graphics.Typeface
 import android.graphics.drawable.Drawable
 import android.os.SystemClock
 import android.view.MotionEvent
+import android.view.GestureDetector
 import android.view.View
 import kotlin.math.abs
 import kotlin.math.atan2
@@ -29,7 +30,9 @@ data class LauncherApp(
 class AtomWorkspaceView(
     context: Context,
     private val installedApps: List<LauncherApp>,
-    private val onPageChanged: (Int, Int) -> Unit
+    private val onOpenChat: () -> Unit,
+    private val onOpenSettings: () -> Unit,
+    private val onOpenDrawer: () -> Unit
 ) : View(context) {
     private data class OrbitalItem(
         val app: LauncherApp,
@@ -57,6 +60,38 @@ class AtomWorkspaceView(
     private var downY = 0f
     private var selected: OrbitalItem? = null
     private var dragging = false
+    private val gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
+        override fun onDown(e: MotionEvent): Boolean = true
+
+        override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
+            if (isCoreAt(e.x, e.y)) toggleMotion()
+            return true
+        }
+
+        override fun onDoubleTap(e: MotionEvent): Boolean {
+            if (isCoreAt(e.x, e.y)) onOpenChat()
+            return true
+        }
+
+        override fun onLongPress(e: MotionEvent) {
+            if (isCoreAt(e.x, e.y)) onOpenSettings()
+        }
+
+        override fun onFling(e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
+            if (e1 == null) return false
+            val dx = e2.x - e1.x
+            val dy = e2.y - e1.y
+            if (abs(dy) > abs(dx) && dy < -70f * density && e1.y > 56f * density) {
+                onOpenDrawer()
+                return true
+            }
+            if (abs(dx) > 70f * density && abs(dx) > abs(dy)) {
+                changePage(if (dx < 0) 1 else -1)
+                return true
+            }
+            return false
+        }
+    })
     private val stars = List(64) { i ->
         val x = ((i * 73 + 19) % 997) / 997f
         val y = ((i * 137 + 41) % 991) / 991f
@@ -195,17 +230,6 @@ class AtomWorkspaceView(
         }
     }
 
-    private fun drawOrbit(canvas: Canvas, cx: Float, cy: Float, radius: Float, tilt: Float, alpha: Float) {
-        canvas.save()
-        canvas.rotate(tilt, cx, cy)
-        paint.color = Color.argb((30 * alpha).toInt(), 65, 175, 221)
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = 1f * density
-        canvas.drawOval(RectF(cx - radius, cy - radius * .48f, cx + radius, cy + radius * .48f), paint)
-        paint.style = Paint.Style.FILL
-        canvas.restore()
-    }
-
     private fun drawCore(canvas: Canvas, cx: Float, cy: Float, radius: Float, time: Float) {
         val pulse = if (running) 1f + .035f * sin(time * 1.4f) else 1f
         paint.style = Paint.Style.FILL
@@ -233,6 +257,15 @@ class AtomWorkspaceView(
         paint.typeface = Typeface.DEFAULT
     }
 
+    private fun isCoreAt(x: Float, y: Float): Boolean {
+        val cx = width * .5f
+        val cy = height * .49f
+        val radius = min(width, height) * .14f
+        val dx = x - cx
+        val dy = y - cy
+        return dx * dx + dy * dy <= radius * radius
+    }
+
     override fun onTouchEvent(event: MotionEvent): Boolean {
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
@@ -240,12 +273,17 @@ class AtomWorkspaceView(
                 downY = event.y
                 selected = items.firstOrNull { it.page == page && it.rect.contains(event.x, event.y) }
                 dragging = false
+                if (selected == null) gestureDetector.onTouchEvent(event)
                 return true
             }
             MotionEvent.ACTION_MOVE -> {
+                if (selected == null) {
+                    gestureDetector.onTouchEvent(event)
+                    return true
+                }
                 val dx = event.x - downX
                 val dy = event.y - downY
-                if (selected != null && abs(dx) + abs(dy) > 14f * density) {
+                if (abs(dx) + abs(dy) > 14f * density) {
                     dragging = true
                     val item = selected!!
                     val cx = width * .5f
@@ -260,25 +298,18 @@ class AtomWorkspaceView(
                 return true
             }
             MotionEvent.ACTION_UP -> {
-                val dx = event.x - downX
-                if (!dragging && selected != null) {
-                    selected?.let { launch(it.app) }
-                } else if (!dragging && selected == null) {
-                    val cx = width * .5f
-                    val cy = height * .49f
-                    val distance = sqrt((event.x - cx) * (event.x - cx) + (event.y - cy) * (event.y - cy))
-                    if (distance < min(width, height) * .14f) {
-                        toggleMotion()
-                    } else if (abs(dx) > 55f * density) {
-                        changePage(if (dx < 0) 1 else -1)
-                    }
+                if (selected == null) {
+                    gestureDetector.onTouchEvent(event)
+                } else {
+                    if (!dragging) selected?.let { launch(it.app) }
+                    if (dragging) saveLayout()
                 }
-                if (dragging) saveLayout()
                 selected = null
                 dragging = false
                 return true
             }
             MotionEvent.ACTION_CANCEL -> {
+                if (selected == null) gestureDetector.onTouchEvent(event)
                 selected = null
                 dragging = false
                 return true
