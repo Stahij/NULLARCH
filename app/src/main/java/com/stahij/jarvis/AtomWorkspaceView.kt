@@ -56,6 +56,7 @@ class AtomWorkspaceView(
     private var page = 0
     private var pageCount = 1
     private var running = true
+    private var motionEnabled = true
     private var downX = 0f
     private var downY = 0f
     private var selected: OrbitalItem? = null
@@ -81,7 +82,7 @@ class AtomWorkspaceView(
             if (e1 == null) return false
             val dx = e2.x - e1.x
             val dy = e2.y - e1.y
-            if (abs(dy) > abs(dx) && dy < -70f * density && e1.y > 56f * density) {
+            if (abs(dy) > abs(dx) && dy < -70f * density && e1.y > 56f * density && e1.y < height - 64f * density) {
                 onOpenDrawer()
                 return true
             }
