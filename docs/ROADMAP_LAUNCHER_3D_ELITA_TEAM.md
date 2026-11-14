@@ -2,14 +2,16 @@
 
 Status: concept and implementation roadmap  
 Target repository: `Stahij/jarvis-android`  
-Current baseline: `v1.6.0`
+Current baseline: `v1.6.2` (UX/gesture pass; Canvas remains the active renderer)
 
 ## Product principles
 
 - The workspace starts empty. Installing an app never places it on the desktop automatically.
 - The user explicitly adds apps, folders and widgets from a drawer or creation flow.
-- The Jarvis core is the only workspace motion control: tap to freeze the orbital motion and return objects to their saved coordinates; tap again to resume.
-- No on-screen page arrows or separate freeze button. Horizontal swipes change pages; a swipe beyond the last page creates a new page.
+- The core is the central interaction target: single tap toggles motion, double tap opens the chat, and long press opens settings/tools.
+- Swipe up on the workspace opens a full-screen app drawer; horizontal swipes change pages.
+- The app drawer provides a searchable four-column app grid and a built-in gesture guide (`?`).
+- No on-screen page arrows, page labels or separate freeze button. Horizontal swipes change pages; a swipe beyond the last page creates a new page.
 - The Android system owns Home, Recents and Back navigation gestures. The launcher must not intercept the system gesture regions.
 - Saved positions are persistent user data. Animation and physics must never overwrite them.
 
@@ -24,9 +26,11 @@ Current baseline: `v1.6.0`
 
 ### Stage 2 — Real 3D renderer
 - Evaluate SceneView / Google Filament integration against the existing Android Views application and Kotlin 2.0.21 toolchain.
-- SceneView 4.x currently exposes a Jetpack Compose Android API; integration may require Compose dependencies and a ComposeView host. Do not add the dependency until a minimal build and device-performance spike succeeds.
+- Current toolchain is AGP 8.7.3, Kotlin 2.0.21, compileSdk 35 and JVM 17. Current SceneView 4.x releases have newer toolchain floors; the 4.18.0 compatibility path still requires a toolchain uplift. Do not add the latest artifact blindly.
+- Prefer a minimal renderer spike first: either upgrade toolchain in a controlled commit for a compatible SceneView release, or use Filament Android bindings directly. Keep Compose integration isolated from the existing Views architecture.
 - Alternative: use Filament Android bindings directly if Compose integration adds unacceptable complexity.
-- Prototype a single core sphere, emissive materials, orbital rings, perspective camera and a small number of icon billboards.
+- Create the first core asset from the procedural Blender source in `tools/blender/create_jarvis_core.py`: emissive sphere, inner glow, suspended sparks and broken organic plasma filaments (no closed decorative orbital rings).
+- Integrate the exported GLB into a real-time Android renderer. Keep the Canvas fallback until the 3D path is proven stable.
 - Keep a Canvas fallback until the 3D path is proven stable.
 
 ### Stage 3 — Interaction and physics
