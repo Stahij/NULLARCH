@@ -57,6 +57,7 @@ class AtomWorkspaceView(
     private var pageCount = 1
     private var running = true
     private var motionEnabled = true
+    private var motionEnabled = true
     private var downX = 0f
     private var downY = 0f
     private var selected: OrbitalItem? = null
@@ -161,12 +162,13 @@ class AtomWorkspaceView(
 
     // The core itself is the only motion control: tap to freeze/resume.
     fun toggleMotion() {
-        running = !running
+        motionEnabled = !motionEnabled
+        running = motionEnabled
         invalidate()
     }
 
     fun resumeMotion() {
-        running = true
+        running = motionEnabled
         invalidate()
     }
 
@@ -188,9 +190,6 @@ class AtomWorkspaceView(
         val now = SystemClock.uptimeMillis()
         val elapsed = if (running) now / 1000f else 0f
 
-        drawOrbit(canvas, cx, cy, base * .27f, -22f, 2.0f)
-        drawOrbit(canvas, cx, cy, base * .37f, 54f, 1.5f)
-        drawOrbit(canvas, cx, cy, base * .45f, -66f, 1.1f)
         drawCore(canvas, cx, cy, base * .115f, elapsed)
 
         items.filter { it.page == page }.forEachIndexed { index, item ->
@@ -250,12 +249,6 @@ class AtomWorkspaceView(
         paint.color = Color.argb(225, 140, 239, 255)
         paint.style = Paint.Style.FILL
         canvas.drawCircle(cx - radius * .22f, cy - radius * .24f, radius * .24f, paint)
-        paint.color = Color.WHITE
-        paint.textAlign = Paint.Align.CENTER
-        paint.textSize = 10f * density
-        paint.typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
-        canvas.drawText("JARVIS", cx, cy + radius * .18f, paint)
-        paint.typeface = Typeface.DEFAULT
     }
 
     private fun isCoreAt(x: Float, y: Float): Boolean {
