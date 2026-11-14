@@ -25,10 +25,11 @@ Current baseline: `v1.6.2` (UX/gesture pass; Canvas remains the active renderer)
 - Persist positions independently from transient animation state.
 
 ### Stage 2 — Real 3D renderer
-- Evaluate SceneView / Google Filament integration against the existing Android Views application and Kotlin 2.0.21 toolchain.
-- Current toolchain is AGP 8.7.3, Kotlin 2.0.21, compileSdk 35 and JVM 17. Current SceneView 4.x releases have newer toolchain floors; the 4.18.0 compatibility path still requires a toolchain uplift. Do not add the latest artifact blindly.
-- Prefer a minimal renderer spike first: either upgrade toolchain in a controlled commit for a compatible SceneView release, or use Filament Android bindings directly. Keep Compose integration isolated from the existing Views architecture.
-- Alternative: use Filament Android bindings directly if Compose integration adds unacceptable complexity.
+- Preferred route: integrate Google Filament directly into the existing Android Views architecture, avoiding a Compose migration.
+- Filament publishes Android libraries through Maven Central and documents `UiHelper` + `SurfaceView` lifecycle integration. Start with a minimal native renderer host and a procedural sphere before loading the Blender GLB.
+- Pin all Filament artifacts to one tested release (initial evaluation target: 1.80.1); use matching host tools for any compiled materials.
+- Current toolchain is AGP 8.7.3, Kotlin 2.0.21, compileSdk 35 and JVM 17. Keep it unchanged unless a concrete Filament compatibility issue requires an upgrade.
+- SceneView remains an alternative, but its Compose integration must not force a broad rewrite of the existing Views architecture.
 - Create the first core asset from the procedural Blender source in `tools/blender/create_jarvis_core.py`: emissive sphere, inner glow, suspended sparks and broken organic plasma filaments (no closed decorative orbital rings).
 - Integrate the exported GLB into a real-time Android renderer. Keep the Canvas fallback until the 3D path is proven stable.
 - Keep a Canvas fallback until the 3D path is proven stable.
