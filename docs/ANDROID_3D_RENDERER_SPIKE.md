@@ -36,4 +36,13 @@ Do not add these dependencies to the production launcher until a separate minima
 
 ## Current status
 
-Planning only. The production launcher still uses Canvas. No Filament dependency has been added and no 3D renderer is claimed as integrated. This document is the controlled implementation plan for the next milestone.
+A first compile/lifecycle spike now exists in the Debug variant only:
+- `FilamentSpikeActivity` initializes Filament, Engine, Renderer, Scene, View, Camera, Skybox, UiHelper and SwapChain.
+- It renders a dark Filament skybox through a SurfaceView and stops its frame loop while paused.
+- The debug application uses the `.debug` application ID suffix so it can be installed beside the signed production app.
+- The spike is exposed as a separate **Jarvis 3D Test** launcher icon in Debug builds.
+- Only `filament-android:1.80.1` is included, via `debugImplementation`; glTF loading and the Blender asset are not included yet.
+
+This is a renderer/lifecycle compile test, not the finished core. The production launcher still uses Canvas and the release variant does not package Filament. Next gate: confirm the Debug build, install the separate debug APK on the target Xiaomi, and test launch/pause/resume/rotation/exit before adding a mesh or glTF loader.
+
+Release policy: pushes to `main` build Debug only. Signed release APKs are published through version tags or an explicit workflow dispatch, preventing experimental renderer commits from silently replacing a published release.
