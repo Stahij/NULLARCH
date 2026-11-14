@@ -57,7 +57,6 @@ class AtomWorkspaceView(
     private var pageCount = 1
     private var running = true
     private var motionEnabled = true
-    private var motionEnabled = true
     private var downX = 0f
     private var downY = 0f
     private var selected: OrbitalItem? = null
