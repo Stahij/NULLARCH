@@ -98,7 +98,7 @@ class AtomWorkspaceView(
                 position.third.coerceAtLeast(0)
             ))
         }
-        pageCount = maxOf(1, (items.maxOfOrNull { it.page } ?: 0) + 1)
+        pageCount = maxOf(1, prefs.getInt("page_count_v2", 1), (items.maxOfOrNull { it.page } ?: 0) + 1)
         page = prefs.getInt("current_page_v2", 0).coerceIn(0, pageCount - 1)
         onPageChanged(page, pageCount)
     }
@@ -118,7 +118,7 @@ class AtomWorkspaceView(
     fun changePage(delta: Int) {
         if (delta > 0 && page == pageCount - 1) pageCount++
         page = (page + delta).coerceIn(0, pageCount - 1)
-        prefs.edit().putInt("current_page_v2", page).apply()
+        prefs.edit().putInt("current_page_v2", page).putInt("page_count_v2", pageCount).apply()
         onPageChanged(page, pageCount)
         invalidate()
     }
@@ -306,6 +306,6 @@ class AtomWorkspaceView(
                 put("page", item.page)
             })
         }
-        prefs.edit().putString("layout_v2", array.toString()).apply()
+        prefs.edit().putString("layout_v2", array.toString()).putInt("page_count_v2", pageCount).apply()
     }
 }
