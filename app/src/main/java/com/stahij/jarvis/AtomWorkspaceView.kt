@@ -137,7 +137,7 @@ class AtomWorkspaceView(
         }
         pageCount = maxOf(1, prefs.getInt("page_count_v2", 1), (items.maxOfOrNull { it.page } ?: 0) + 1)
         page = prefs.getInt("current_page_v2", 0).coerceIn(0, pageCount - 1)
-        onPageChanged(page, pageCount)
+
     }
 
     fun addApp(app: LauncherApp): Boolean {
@@ -156,7 +156,7 @@ class AtomWorkspaceView(
         if (delta > 0 && page == pageCount - 1) pageCount++
         page = (page + delta).coerceIn(0, pageCount - 1)
         prefs.edit().putInt("current_page_v2", page).putInt("page_count_v2", pageCount).apply()
-        onPageChanged(page, pageCount)
+
         invalidate()
     }
 
