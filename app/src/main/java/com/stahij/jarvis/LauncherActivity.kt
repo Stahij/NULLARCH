@@ -1,14 +1,12 @@
 package com.stahij.jarvis
 
 import android.app.Activity
-import android.app.AlertDialog
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.Gravity
-import android.view.View
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -20,7 +18,6 @@ class LauncherActivity : Activity() {
     private val cyan = Color.rgb(99, 224, 255)
     private val bg = Color.rgb(3, 8, 20)
     private var installedApps: List<LauncherApp> = emptyList()
-    private lateinit var pageLabel: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -60,129 +57,110 @@ class LauncherActivity : Activity() {
     }
 
     private fun buildWorkspace() {
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setBackgroundColor(bg)
-        }
-        val header = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(20), dp(10), dp(16), dp(4))
-        }
-        val brand = TextView(this).apply {
-            text = "J A R V I S"
-            textSize = 18f
-            letterSpacing = .18f
-            typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
-            setTextColor(cyan)
-        }
-        header.addView(brand, LinearLayout.LayoutParams(0, dp(42), 1f))
-        val assistant = action("◉", "Открыть Jarvis AI") {
-            startActivity(Intent(this, ChatHubActivity::class.java))
-        }
-        header.addView(assistant, LinearLayout.LayoutParams(dp(46), dp(42)))
-        val drawer = action("＋", "Добавить приложение на рабочий стол") { showAppDrawer() }
-        header.addView(drawer, LinearLayout.LayoutParams(dp(46), dp(42)).apply { leftMargin = dp(8) })
-        root.addView(header)
-
-        pageLabel = TextView(this).apply {
-            text = "ПУСТОЕ ПРОСТРАНСТВО • ДОБАВЬ СВОИ ПРИЛОЖЕНИЯ"
-            textSize = 9f
-            letterSpacing = .12f
-            setTextColor(Color.rgb(104, 153, 184))
-            setPadding(dp(22), 0, dp(22), dp(4))
-        }
-        root.addView(pageLabel)
-
-        workspace = AtomWorkspaceView(this, installedApps) { page, count ->
-            pageLabel.text = if (count == 1 && page == 0) {
-                "МОЁ ПРОСТРАНСТВО • ДОБАВЛЯЙ ТОЛЬКО НУЖНОЕ"
-            } else {
-                "СТРАНИЦА %02d / %02d • СВАЙП ДЛЯ ПЕРЕКЛЮЧЕНИЯ".format(page + 1, count)
-            }
-        }
-        root.addView(workspace, LinearLayout.LayoutParams(-1, 0, 1f))
-        setContentView(root)
-    }
-
-    private fun action(symbol: String, description: String, click: () -> Unit) = TextView(this).apply {
-        text = symbol
-        contentDescription = description
-        textSize = 21f
-        gravity = Gravity.CENTER
-        setTextColor(cyan)
-        background = GradientDrawable().apply {
-            setColor(Color.rgb(10, 25, 43))
-            cornerRadius = dp(14).toFloat()
-            setStroke(dp(1), Color.rgb(28, 83, 111))
-        }
-        isClickable = true
-        isFocusable = true
-        setOnClickListener { click() }
+        workspace = AtomWorkspaceView(
+            this,
+            installedApps,
+            onOpenChat = { startActivity(Intent(this, ChatHubActivity::class.java)) },
+            onOpenSettings = {
+                startActivity(Intent(this, MainActivity::class.java).apply {
+                    putExtra(MainActivity.EXTRA_TOOLS_ONLY, true)
+                })
+            },
+            onOpenDrawer = { showAppDrawer() }
+        )
+        setContentView(workspace)
     }
 
     private fun showAppDrawer() {
-        val column = LinearLayout(this).apply {
+        val dialog = android.app.Dialog(this)
+        val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(18), dp(14), dp(18), dp(8))
+            setPadding(dp(20), dp(22), dp(20), dp(18))
+            setBackground(GradientDrawable().apply {
+                setColor(Color.rgb(8, 17, 31))
+                cornerRadii = floatArrayOf(dp(28).toFloat(), dp(28).toFloat(), dp(28).toFloat(), dp(28).toFloat(), 0f, 0f, 0f, 0f)
+                setStroke(dp(1), Color.rgb(28, 73, 99))
+            })
         }
-        val search = EditText(this).apply {
-            hint = "Найти приложение"
-            setSingleLine(true)
-            textSize = 16f
+        val heading = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
         }
-        column.addView(search)
-        val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        val scroll = android.widget.ScrollView(this)
-        scroll.addView(list)
-        column.addView(scroll, LinearLayout.LayoutParams(-1, dp(440)))
+        heading.addView(TextView(this).apply {
+            text = "Приложения"
+            textSize = 23f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.WHITE)
+        }, LinearLayout.LayoutParams(0, dp(48), 1f))
+        val close = TextView(this).apply {
+            text = "✕"
+            textSize = 22f
+            gravity = Gravity.CENTER
+            setTextColor(cyan)
+            setOnClickListener { dialog.dismiss() }
+        }
+        heading.addView(close, LinearLayout.LayoutParams(dp(48), dp(48)))
+        panel.addView(heading)
 
-        val dialog = AlertDialog.Builder(this)
-            .setTitle("Выбери приложение для рабочего стола")
-            .setView(column)
-            .setNegativeButton("Закрыть", null)
-            .create()
+        val search = EditText(this).apply {
+            hint = "Поиск приложений"
+            setSingleLine(true)
+            textSize = 15f
+            setTextColor(Color.WHITE)
+            setHintTextColor(Color.rgb(125, 151, 170))
+            setPadding(dp(14), 0, dp(14), 0)
+            background = GradientDrawable().apply {
+                setColor(Color.rgb(18, 34, 51))
+                cornerRadius = dp(15).toFloat()
+            }
+        }
+        panel.addView(search, LinearLayout.LayoutParams(-1, dp(48)).apply { topMargin = dp(10); bottomMargin = dp(14) })
+
+        val grid = android.widget.GridLayout(this).apply { columnCount = 4; useDefaultMargins = false }
+        val scroll = android.widget.ScrollView(this).apply { isFillViewport = true }
+        scroll.addView(grid)
+        panel.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
 
         fun render(query: String) {
-            list.removeAllViews()
-            installedApps
-                .filter { it.label.contains(query, true) || it.packageName.contains(query, true) }
-                .forEach { app ->
-                    val row = LinearLayout(this).apply {
-                        orientation = LinearLayout.HORIZONTAL
-                        gravity = Gravity.CENTER_VERTICAL
-                        setPadding(dp(8), dp(8), dp(8), dp(8))
-                    }
-                    val icon = TextView(this).apply {
-                        setCompoundDrawablesWithIntrinsicBounds(app.icon, null, null, null)
-                        compoundDrawablePadding = dp(10)
-                        text = app.label
-                        textSize = 15f
-                        setTextColor(Color.WHITE)
-                        gravity = Gravity.CENTER_VERTICAL
-                    }
-                    row.addView(icon, LinearLayout.LayoutParams(0, dp(48), 1f))
-                    val add = TextView(this).apply {
-                        text = "＋"
-                        textSize = 22f
-                        gravity = Gravity.CENTER
-                        setTextColor(cyan)
-                        setPadding(dp(14), 0, dp(14), 0)
-                    }
-                    row.addView(add, LinearLayout.LayoutParams(dp(48), dp(48)))
-                    row.setOnClickListener {
+            grid.removeAllViews()
+            installedApps.filter {
+                it.label.contains(query, true) || it.packageName.contains(query, true)
+            }.forEach { app ->
+                val tile = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    gravity = Gravity.CENTER
+                    setPadding(dp(4), dp(10), dp(4), dp(10))
+                    isClickable = true
+                    isFocusable = true
+                    setOnClickListener {
                         val added = workspace.addApp(app)
                         Toast.makeText(
-                            this,
-                            if (added) "${app.label} добавлено на экран" else "Это приложение уже на рабочем столе",
+                            this@LauncherActivity,
+                            if (added) "${app.label} добавлено на рабочий стол" else "Приложение уже добавлено",
                             Toast.LENGTH_SHORT
                         ).show()
                         if (added) dialog.dismiss()
                     }
-                    list.addView(row)
-                    val divider = View(this).apply { setBackgroundColor(Color.rgb(24, 48, 68)) }
-                    list.addView(divider, LinearLayout.LayoutParams(-1, dp(1)))
                 }
+                val icon = android.widget.ImageView(this).apply {
+                    setImageDrawable(app.icon)
+                    scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
+                }
+                tile.addView(icon, LinearLayout.LayoutParams(dp(46), dp(46)))
+                tile.addView(TextView(this).apply {
+                    text = app.label
+                    textSize = 10f
+                    maxLines = 2
+                    gravity = Gravity.CENTER
+                    setTextColor(Color.rgb(224, 237, 246))
+                    setPadding(0, dp(6), 0, 0)
+                }, LinearLayout.LayoutParams(-1, dp(34)))
+                grid.addView(tile, android.widget.GridLayout.LayoutParams().apply {
+                    width = 0
+                    height = dp(92)
+                    columnSpec = android.widget.GridLayout.spec(android.widget.GridLayout.UNDEFINED, 1f)
+                })
+            }
         }
         search.addTextChangedListener(object : android.text.TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
@@ -190,7 +168,23 @@ class LauncherActivity : Activity() {
             override fun afterTextChanged(s: android.text.Editable?) = Unit
         })
         render("")
+        dialog.setContentView(panel)
+        dialog.setOnShowListener {
+            dialog.window?.apply {
+                setBackgroundDrawableResource(android.R.color.transparent)
+                setLayout(-1, -1)
+                setGravity(Gravity.BOTTOM)
+                addFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+                attributes = attributes.apply { dimAmount = .68f }
+            }
+        }
         dialog.show()
+        dialog.window?.apply {
+            setBackgroundDrawableResource(android.R.color.transparent)
+            setLayout(-1, -1)
+            setGravity(Gravity.BOTTOM)
+            attributes = attributes.apply { dimAmount = .68f }
+        }
     }
 
     private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
