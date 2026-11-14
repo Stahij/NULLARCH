@@ -3,7 +3,6 @@ package com.stahij.jarvis
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.Intent
-import android.content.pm.ResolveInfo
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -82,36 +81,27 @@ class LauncherActivity : Activity() {
             startActivity(Intent(this, ChatHubActivity::class.java))
         }
         header.addView(assistant, LinearLayout.LayoutParams(dp(46), dp(42)))
-        val drawer = action("⌕", "Поиск приложений") { showAppDrawer() }
+        val drawer = action("＋", "Добавить приложение на рабочий стол") { showAppDrawer() }
         header.addView(drawer, LinearLayout.LayoutParams(dp(46), dp(42)).apply { leftMargin = dp(8) })
         root.addView(header)
 
         pageLabel = TextView(this).apply {
-            text = "ЖИВОЕ РАБОЧЕЕ ПРОСТРАНСТВО"
+            text = "ПУСТОЕ ПРОСТРАНСТВО • ДОБАВЬ СВОИ ПРИЛОЖЕНИЯ"
             textSize = 9f
-            letterSpacing = .18f
+            letterSpacing = .12f
             setTextColor(Color.rgb(104, 153, 184))
             setPadding(dp(22), 0, dp(22), dp(4))
         }
         root.addView(pageLabel)
 
         workspace = AtomWorkspaceView(this, installedApps) { page, count ->
-            pageLabel.text = "ОРБИТА  %02d / %02d   •   ЯДРО JARVIS".format(page + 1, count)
+            pageLabel.text = if (count == 1 && page == 0) {
+                "МОЁ ПРОСТРАНСТВО • ДОБАВЛЯЙ ТОЛЬКО НУЖНОЕ"
+            } else {
+                "СТРАНИЦА %02d / %02d • СВАЙП ДЛЯ ПЕРЕКЛЮЧЕНИЯ".format(page + 1, count)
+            }
         }
         root.addView(workspace, LinearLayout.LayoutParams(-1, 0, 1f))
-
-        val footer = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-            setPadding(dp(14), dp(4), dp(14), dp(10))
-        }
-        footer.addView(action("‹", "Предыдущая страница") { workspace.changePage(-1) },
-            LinearLayout.LayoutParams(dp(48), dp(42)))
-        footer.addView(action("●", "Зафиксировать орбиты") { workspace.restoreSavedPositions() },
-            LinearLayout.LayoutParams(0, dp(42), 1f).apply { leftMargin = dp(8); rightMargin = dp(8) })
-        footer.addView(action("›", "Следующая страница") { workspace.changePage(1) },
-            LinearLayout.LayoutParams(dp(48), dp(42)))
-        root.addView(footer)
         setContentView(root)
     }
 
@@ -145,28 +135,53 @@ class LauncherActivity : Activity() {
         val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         val scroll = android.widget.ScrollView(this)
         scroll.addView(list)
-        column.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
+        column.addView(scroll, LinearLayout.LayoutParams(-1, dp(440)))
+
         val dialog = AlertDialog.Builder(this)
-            .setTitle("Приложения • ${installedApps.size}")
+            .setTitle("Выбери приложение для рабочего стола")
             .setView(column)
             .setNegativeButton("Закрыть", null)
             .create()
 
         fun render(query: String) {
             list.removeAllViews()
-            installedApps.filter { it.label.contains(query, true) || it.packageName.contains(query, true) }
+            installedApps
+                .filter { it.label.contains(query, true) || it.packageName.contains(query, true) }
                 .forEach { app ->
-                    val row = TextView(this).apply {
-                        text = "  ${app.label}"
-                        textSize = 16f
+                    val row = LinearLayout(this).apply {
+                        orientation = LinearLayout.HORIZONTAL
+                        gravity = Gravity.CENTER_VERTICAL
+                        setPadding(dp(8), dp(8), dp(8), dp(8))
+                    }
+                    val icon = TextView(this).apply {
+                        setCompoundDrawablesWithIntrinsicBounds(app.icon, null, null, null)
+                        compoundDrawablePadding = dp(10)
+                        text = app.label
+                        textSize = 15f
                         setTextColor(Color.WHITE)
                         gravity = Gravity.CENTER_VERTICAL
-                        setPadding(dp(8), dp(12), dp(8), dp(12))
-                        setCompoundDrawablesWithIntrinsicBounds(app.icon, null, null, null)
-                        compoundDrawablePadding = dp(12)
-                        setOnClickListener { launch(app); dialog.dismiss() }
+                    }
+                    row.addView(icon, LinearLayout.LayoutParams(0, dp(48), 1f))
+                    val add = TextView(this).apply {
+                        text = "＋"
+                        textSize = 22f
+                        gravity = Gravity.CENTER
+                        setTextColor(cyan)
+                        setPadding(dp(14), 0, dp(14), 0)
+                    }
+                    row.addView(add, LinearLayout.LayoutParams(dp(48), dp(48)))
+                    row.setOnClickListener {
+                        val added = workspace.addApp(app)
+                        Toast.makeText(
+                            this,
+                            if (added) "${app.label} добавлено на экран" else "Это приложение уже на рабочем столе",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        if (added) dialog.dismiss()
                     }
                     list.addView(row)
+                    val divider = View(this).apply { setBackgroundColor(Color.rgb(24, 48, 68)) }
+                    list.addView(divider, LinearLayout.LayoutParams(-1, dp(1)))
                 }
         }
         search.addTextChangedListener(object : android.text.TextWatcher {
@@ -176,17 +191,6 @@ class LauncherActivity : Activity() {
         })
         render("")
         dialog.show()
-    }
-
-    private fun launch(app: LauncherApp) {
-        try {
-            startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-                .setClassName(app.packageName, app.className)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-        } catch (_: Exception) {
-            Toast.makeText(this, "Не удалось открыть ${app.label}", Toast.LENGTH_SHORT).show()
-            loadInstalledApps()
-        }
     }
 
     private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
