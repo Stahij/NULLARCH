@@ -69,5 +69,5 @@ android {
 
 // Filament stays isolated in Debug until the renderer spike passes device tests.
 dependencies {
-    debugImplementation("com.google.android.filament:filament-android:1.80.1")
+    debugImplementation("com.google.android.filament:filament-android:1.60.0")
 }
