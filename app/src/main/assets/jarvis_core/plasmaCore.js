@@ -1,0 +1,7 @@
+class PlasmaCore {
+ constructor(scene,quality){this.scene=scene;this.quality=quality;this.group=new THREE.Group();this.isDisposed=false;this.initGeometry();scene.add(this.group);}
+ initGeometry(){const s=this.quality==='low'?1:this.quality==='high'?3:2;this.plasmaMesh=new THREE.Mesh(new THREE.IcosahedronGeometry(1.2,s),new THREE.MeshStandardMaterial({color:0x0044ff,emissive:0x0088ff,emissiveIntensity:.75,roughness:.3,metalness:.35,transparent:true,opacity:.84,blending:THREE.AdditiveBlending}));this.group.add(this.plasmaMesh);this.auraMesh=new THREE.Mesh(new THREE.SphereGeometry(1.35,this.quality==='low'?12:16,this.quality==='low'?10:14),new THREE.MeshBasicMaterial({color:0x00ffff,transparent:true,opacity:.1,blending:THREE.AdditiveBlending,wireframe:true}));this.group.add(this.auraMesh);}
+ update(delta,time,state,speed){if(this.isDisposed)return;this.plasmaMesh.rotation.y+=delta*.4*speed;this.plasmaMesh.rotation.z+=delta*.2*speed;this.plasmaMesh.scale.setScalar(1+Math.sin(time*2.5*speed)*.07);this.auraMesh.rotation.y-=delta*.3*speed;this.auraMesh.scale.setScalar(1.1+Math.cos(time*2*speed)*.045);}
+ setVisibility(v){this.group.visible=v;}
+ dispose(){if(this.isDisposed)return;this.isDisposed=true;this.scene.remove(this.group);this.group.traverse(c=>{if(c.geometry)c.geometry.dispose();if(c.material){if(Array.isArray(c.material))c.material.forEach(m=>m.dispose());else c.material.dispose();}});}
+}
