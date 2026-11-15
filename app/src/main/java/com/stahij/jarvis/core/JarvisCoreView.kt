@@ -3,7 +3,6 @@ package com.stahij.jarvis.core
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Color
-import android.os.Build
 import android.util.AttributeSet
 import android.view.ViewGroup
 import android.webkit.WebChromeClient
@@ -36,7 +35,6 @@ class JarvisCoreView @JvmOverloads constructor(context: Context, attrs: Attribut
                     bridge.onPageReady()
                 }
             }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) setRendererPriorityPolicy(RENDERER_PRIORITY_BOUND, true)
         }
         addView(webView, LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         webView.loadUrl("file:///android_asset/jarvis_core/index.html")
