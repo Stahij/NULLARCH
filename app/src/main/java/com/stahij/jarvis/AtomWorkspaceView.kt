@@ -4,10 +4,7 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
-import android.graphics.RadialGradient
 import android.graphics.RectF
-import android.graphics.Shader
-import android.graphics.Typeface
 import android.graphics.drawable.Drawable
 import android.os.SystemClock
 import android.view.MotionEvent
@@ -27,6 +24,11 @@ data class LauncherApp(
     val icon: Drawable
 )
 
+/**
+ * Transparent interaction layer above the WebGL core.
+ * It owns app icons, placement, paging and touch input; the WebView below
+ * owns only the 3D background/core rendering.
+ */
 class AtomWorkspaceView(
     context: Context,
     private val installedApps: List<LauncherApp>,
@@ -50,9 +52,8 @@ class AtomWorkspaceView(
         color = Color.WHITE
         textSize = 10f * density
         textAlign = Paint.Align.CENTER
-        typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+        typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
     }
-    private val starPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private var page = 0
     private var pageCount = 1
     private var running = true
@@ -93,20 +94,15 @@ class AtomWorkspaceView(
             return false
         }
     })
-    private val stars = List(64) { i ->
-        val x = ((i * 73 + 19) % 997) / 997f
-        val y = ((i * 137 + 41) % 991) / 991f
-        Triple(x, y, 0.35f + ((i * 17) % 60) / 100f)
-    }
 
     init {
         isFocusable = true
         isClickable = true
+        setBackgroundColor(Color.TRANSPARENT)
+        setLayerType(View.LAYER_TYPE_HARDWARE, null)
         loadLayout()
     }
 
-    // A fresh v2 layout intentionally starts empty; installed apps are never
-    // placed on the user's workspace without an explicit choice.
     private fun loadLayout() {
         val saved = prefs.getString("layout_v2", null)
         val savedMap = HashMap<String, Triple<Float, Float, Int>>()
@@ -136,7 +132,6 @@ class AtomWorkspaceView(
         }
         pageCount = maxOf(1, prefs.getInt("page_count_v2", 1), (items.maxOfOrNull { it.page } ?: 0) + 1)
         page = prefs.getInt("current_page_v2", 0).coerceIn(0, pageCount - 1)
-
     }
 
     fun addApp(app: LauncherApp): Boolean {
@@ -155,11 +150,10 @@ class AtomWorkspaceView(
         if (delta > 0 && page == pageCount - 1) pageCount++
         page = (page + delta).coerceIn(0, pageCount - 1)
         prefs.edit().putInt("current_page_v2", page).putInt("page_count_v2", pageCount).apply()
-
         invalidate()
     }
 
-    // The core itself is the only motion control: tap to freeze/resume.
+    // A tap on the center freezes orbital motion at the saved base positions.
     fun toggleMotion() {
         motionEnabled = !motionEnabled
         running = motionEnabled
@@ -181,15 +175,10 @@ class AtomWorkspaceView(
         val w = width.toFloat()
         val h = height.toFloat()
         if (w <= 0f || h <= 0f) return
-        canvas.drawColor(Color.rgb(3, 8, 20))
-        drawStars(canvas, w, h)
         val cx = w * .5f
         val cy = h * .49f
         val base = min(w, h)
-        val now = SystemClock.uptimeMillis()
-        val elapsed = if (running) now / 1000f else 0f
-
-        drawCore(canvas, cx, cy, base * .115f, elapsed)
+        val elapsed = if (running) SystemClock.uptimeMillis() / 1000f else 0f
 
         items.filter { it.page == page }.forEachIndexed { index, item ->
             val angle = item.angle + if (running) elapsed * (.11f + (index % 4) * .012f) else 0f
@@ -219,35 +208,6 @@ class AtomWorkspaceView(
             canvas.drawText(item.app.label.take(16), x, y + iconSize * .78f + 12f * density, textPaint)
         }
         if (running) postInvalidateOnAnimation()
-    }
-
-    private fun drawStars(canvas: Canvas, w: Float, h: Float) {
-        stars.forEachIndexed { i, star ->
-            starPaint.color = Color.argb((star.third * 95).toInt(), 123, 185, 221)
-            val radius = if (i % 7 == 0) 1.5f else .75f
-            canvas.drawCircle(star.first * w, star.second * h, radius * density, starPaint)
-        }
-    }
-
-    private fun drawCore(canvas: Canvas, cx: Float, cy: Float, radius: Float, time: Float) {
-        val pulse = if (running) 1f + .035f * sin(time * 1.4f) else 1f
-        paint.style = Paint.Style.FILL
-        paint.shader = RadialGradient(
-            cx, cy, radius * 1.9f * pulse,
-            intArrayOf(Color.argb(0, 31, 195, 255), Color.argb(48, 20, 175, 237), Color.argb(0, 4, 12, 28)),
-            floatArrayOf(0f, .52f, 1f), Shader.TileMode.CLAMP
-        )
-        canvas.drawCircle(cx, cy, radius * 1.9f * pulse, paint)
-        paint.shader = null
-        paint.color = Color.argb(210, 16, 85, 119)
-        canvas.drawCircle(cx, cy, radius * pulse, paint)
-        paint.color = Color.argb(180, 78, 220, 255)
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = 1.6f * density
-        canvas.drawCircle(cx, cy, radius * .82f, paint)
-        paint.color = Color.argb(225, 140, 239, 255)
-        paint.style = Paint.Style.FILL
-        canvas.drawCircle(cx - radius * .22f, cy - radius * .24f, radius * .24f, paint)
     }
 
     private fun isCoreAt(x: Float, y: Float): Boolean {
