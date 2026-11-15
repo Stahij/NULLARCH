@@ -8,7 +8,7 @@ function rebuild(){if(active)active.dispose();cores[theme]=null;active=make(them
 function setTheme(t){if(t!=='atomic'&&t!=='plasma'||t===theme&&active)return;if(active)active.setVisibility(false);theme=t;if(!cores[t])cores[t]=make(t);active=cores[t];active.setVisibility(true);}
 function setQuality(v){if(!['auto','low','medium','high'].includes(v)||v===quality)return;quality=v;eco=false;stable=0;clearCores();rebuild();}
 function resize(){if(!renderer||!camera)return;const w=Math.max(1,host.clientWidth),h=Math.max(1,host.clientHeight);camera.aspect=w/h;camera.updateProjectionMatrix();renderer.setSize(w,h,false);}
-function setEco(v){if(eco===v)return;eco=v;if(quality==='auto')rebuild();renderer.setPixelRatio(v?Math.min(dpr,.8):dpr);renderCount=0;}
+function setEco(v){if(eco===v)return;eco=v;if(quality==='auto'){clearCores();active=make(theme);cores[theme]=active;active.setVisibility(true);}renderer.setPixelRatio(v?Math.min(dpr,.8):dpr);renderCount=0;}
 function tick(){if(paused||disposed)return;raf=requestAnimationFrame(tick);const dt=Math.min(clock.getDelta(),.05),t=clock.elapsedTime;if(active)active.update(dt,t,state,speeds[state]||1);if(!eco||(++renderCount%2===0))renderer.render(scene,camera);frames++;const now=performance.now();if(now-last>=2000){fps=Math.round(frames*1000/(now-last));frames=0;last=now;if(quality==='auto'&&(stable+=2)>=6){if(fps<27&&!eco)setEco(true);else if(fps>48&&eco)setEco(false);else if(fps<38&&!eco&&q()==='high')rebuild();stable=0;}}}
 function start(){if(raf||paused||disposed)return;clock.start();last=performance.now();frames=0;raf=requestAnimationFrame(tick);}
 function stop(){if(raf){cancelAnimationFrame(raf);raf=0;}if(clock)clock.stop();}
