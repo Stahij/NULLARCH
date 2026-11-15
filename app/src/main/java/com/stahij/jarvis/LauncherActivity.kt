@@ -23,6 +23,7 @@ class LauncherActivity : Activity() {
     private val cyan = Color.rgb(99, 224, 255)
     private val bg = Color.rgb(3, 8, 20)
     private var installedApps: List<LauncherApp> = emptyList()
+    private var selectedCore = JarvisCoreBridge.CoreTheme.ATOMIC
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -30,6 +31,11 @@ class LauncherActivity : Activity() {
         window.navigationBarColor = bg
         window.navigationBarDividerColor = Color.TRANSPARENT
         loadInstalledApps()
+        selectedCore = runCatching {
+            JarvisCoreBridge.CoreTheme.valueOf(
+                getSharedPreferences("jarvis_core", MODE_PRIVATE).getString("theme", "ATOMIC") ?: "ATOMIC"
+            )
+        }.getOrDefault(JarvisCoreBridge.CoreTheme.ATOMIC)
         buildWorkspace()
     }
 
@@ -70,7 +76,7 @@ class LauncherActivity : Activity() {
 
     private fun buildWorkspace() {
         coreView = JarvisCoreView(this).apply {
-            bridge.setTheme(JarvisCoreBridge.CoreTheme.ATOMIC)
+            bridge.setTheme(selectedCore)
             bridge.setQuality(JarvisCoreBridge.CoreQuality.AUTO)
             bridge.setAssistantState(JarvisCoreBridge.AssistantState.IDLE)
         }
@@ -78,11 +84,7 @@ class LauncherActivity : Activity() {
             this,
             installedApps,
             onOpenChat = { startActivity(Intent(this, ChatHubActivity::class.java)) },
-            onOpenSettings = {
-                startActivity(Intent(this, MainActivity::class.java).apply {
-                    putExtra(MainActivity.EXTRA_TOOLS_ONLY, true)
-                })
-            },
+            onOpenSettings = { showCoreMenu() },
             onOpenDrawer = { showAppDrawer() }
         )
         val root = FrameLayout(this).apply {
@@ -91,6 +93,26 @@ class LauncherActivity : Activity() {
             addView(workspace, FrameLayout.LayoutParams(-1, -1))
         }
         setContentView(root)
+    }
+
+    private fun showCoreMenu() {
+        val options = arrayOf("Atomic Core", "Plasma Core", "Настройки и инструменты")
+        AlertDialog.Builder(this)
+            .setTitle("Визуальное ядро Jarvis")
+            .setItems(options) { _, which ->
+                when (which) {
+                    0, 1 -> {
+                        selectedCore = if (which == 0) JarvisCoreBridge.CoreTheme.ATOMIC else JarvisCoreBridge.CoreTheme.PLASMA
+                        getSharedPreferences("jarvis_core", MODE_PRIVATE).edit()
+                            .putString("theme", selectedCore.name).apply()
+                        if (::coreView.isInitialized) coreView.bridge.setTheme(selectedCore)
+                    }
+                    2 -> startActivity(Intent(this, MainActivity::class.java).apply {
+                        putExtra(MainActivity.EXTRA_TOOLS_ONLY, true)
+                    })
+                }
+            }
+            .show()
     }
 
     private fun showAppDrawer() {
