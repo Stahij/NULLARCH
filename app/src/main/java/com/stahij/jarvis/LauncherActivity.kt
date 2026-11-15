@@ -9,13 +9,17 @@ import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.Gravity
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
+import com.stahij.jarvis.core.JarvisCoreBridge
+import com.stahij.jarvis.core.JarvisCoreView
 import java.util.Locale
 
 class LauncherActivity : Activity() {
     private lateinit var workspace: AtomWorkspaceView
+    private lateinit var coreView: JarvisCoreView
     private val cyan = Color.rgb(99, 224, 255)
     private val bg = Color.rgb(3, 8, 20)
     private var installedApps: List<LauncherApp> = emptyList()
@@ -31,12 +35,19 @@ class LauncherActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        if (::coreView.isInitialized) coreView.onResume()
         if (::workspace.isInitialized) workspace.resumeMotion()
     }
 
     override fun onPause() {
         if (::workspace.isInitialized) workspace.pauseMotion()
+        if (::coreView.isInitialized) coreView.onPause()
         super.onPause()
+    }
+
+    override fun onDestroy() {
+        if (::coreView.isInitialized) coreView.onDestroy()
+        super.onDestroy()
     }
 
     private fun loadInstalledApps() {
@@ -58,6 +69,11 @@ class LauncherActivity : Activity() {
     }
 
     private fun buildWorkspace() {
+        coreView = JarvisCoreView(this).apply {
+            bridge.setTheme(JarvisCoreBridge.CoreTheme.ATOMIC)
+            bridge.setQuality(JarvisCoreBridge.CoreQuality.AUTO)
+            bridge.setAssistantState(JarvisCoreBridge.AssistantState.IDLE)
+        }
         workspace = AtomWorkspaceView(
             this,
             installedApps,
@@ -69,7 +85,12 @@ class LauncherActivity : Activity() {
             },
             onOpenDrawer = { showAppDrawer() }
         )
-        setContentView(workspace)
+        val root = FrameLayout(this).apply {
+            setBackgroundColor(Color.rgb(3, 8, 20))
+            addView(coreView, FrameLayout.LayoutParams(-1, -1))
+            addView(workspace, FrameLayout.LayoutParams(-1, -1))
+        }
+        setContentView(root)
     }
 
     private fun showAppDrawer() {
@@ -201,7 +222,7 @@ class LauncherActivity : Activity() {
             .setTitle("Управление Jarvis Launcher")
             .setMessage(
                 "ЯДРО\n" +
-                "• Одинарное нажатие — остановить или возобновить движение\n" +
+                "• Одинарное нажатие — вернуть приложения к сохранённым позициям / возобновить движение\n" +
                 "• Двойное нажатие — открыть чат с Jarvis\n" +
                 "• Долгое нажатие — настройки и инструменты\n\n" +
                 "РАБОЧИЙ СТОЛ\n" +
@@ -209,7 +230,6 @@ class LauncherActivity : Activity() {
                 "• Свайп влево или вправо — смена страницы\n" +
                 "• Нажатие на значок — запустить приложение\n" +
                 "• Перетаскивание значка — изменить его положение\n\n" +
-                "В каталоге нажми на значок, чтобы добавить его на рабочий стол. " +
                 "Системные жесты Android остаются за самой системой."
             )
             .setPositiveButton("Понятно", null)
