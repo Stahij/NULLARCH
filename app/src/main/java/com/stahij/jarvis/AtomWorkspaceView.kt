@@ -45,8 +45,7 @@ class AtomWorkspaceView(
         var page: Int,
         val tiltX: Float,
         val tiltY: Float,
-        val tiltZ: Float,
-        val phase: Float,
+        val angularSpeed: Float,
         var rect: RectF = RectF()
     )
 
@@ -117,15 +116,23 @@ class AtomWorkspaceView(
     private fun orbitalItem(app: LauncherApp, angle: Float, orbit: Float, page: Int): OrbitalItem {
         val seed = app.packageName.hashCode().toLong().and(0xffffffffL)
         fun unit(shift: Int): Float = ((seed shr shift) and 0xffffL).toFloat() / 65535f
+        // Four intentional orbital families instead of a random plane per icon.
+        // This creates a readable atom-like structure: flat, vertical and two tilted planes.
+        val plane = (seed % 4L).toInt()
+        val tilt = when (plane) {
+            0 -> 0f to 0f
+            1 -> 1.12f to 0.08f
+            2 -> 0.62f to 0.72f
+            else -> -0.62f to -0.72f
+        }
         return OrbitalItem(
             app = app,
             angle = angle,
             orbit = orbit,
             page = page,
-            tiltX = (unit(0) - .5f) * 1.18f,
-            tiltY = (unit(8) - .5f) * 1.30f,
-            tiltZ = (unit(16) - .5f) * .72f,
-            phase = unit(24) * (Math.PI * 2.0).toFloat()
+            tiltX = tilt.first,
+            tiltY = tilt.second,
+            angularSpeed = .115f + unit(16) * .025f
         )
     }
 
@@ -197,21 +204,18 @@ class AtomWorkspaceView(
 
     private fun orbitalPoint(item: OrbitalItem, angle: Float, radius: Float, phaseOffset: Float = 0f): OrbitalPoint {
         val a = angle + phaseOffset
-        var x = cos(a) * radius
-        var y = sin(a) * radius * .82f
-        var z = sin(a + item.phase) * radius * .16f
+        // A true ellipse in one fixed plane. No wobble or per-frame axis changes.
+        val x = cos(a) * radius
+        val y = sin(a) * radius * .78f
+        val z = 0f
 
         val cx = cos(item.tiltX); val sx = sin(item.tiltX)
         val cy = cos(item.tiltY); val sy = sin(item.tiltY)
-        val cz = cos(item.tiltZ); val sz = sin(item.tiltZ)
-
         val y1 = y * cx - z * sx
         val z1 = y * sx + z * cx
         val x2 = x * cy + z1 * sy
         val z2 = -x * sy + z1 * cy
-        val x3 = x2 * cz - y1 * sz
-        val y3 = x2 * sz + y1 * cz
-        return OrbitalPoint(x3, y3, z2)
+        return OrbitalPoint(x2, y1, z2)
     }
 
     private fun project(point: OrbitalPoint, cx: Float, cy: Float, base: Float): OrbitalPoint {
@@ -324,7 +328,7 @@ class AtomWorkspaceView(
         visibleItems.forEach { drawOrbit(canvas, it, cx, cy, base, coreRadius, elapsed) }
 
         val projected = visibleItems.mapNotNull { item ->
-            val angle = item.angle + if (running) elapsed * .14f else 0f
+            val angle = item.angle + if (running) elapsed * item.angularSpeed else 0f
             val point = project(orbitalPoint(item, angle, item.orbit), cx, cy, base)
             if (isOccludedByCore(point, cx, cy, coreRadius + base * .13f)) {
                 item.rect.setEmpty()
@@ -335,7 +339,7 @@ class AtomWorkspaceView(
         }.sortedBy { it.second.z }
 
         projected.forEach { (item, point, _) ->
-            val depth = ((point.z / (base * .55f)) + 1f).coerceIn(0f, 1f)
+            val depth = ((point.z / .46f) * .5f + .5f).coerceIn(0f, 1f)
             val scale = .78f + depth * .30f
             val iconSize = 38f * density * scale
             val alpha = (178 + depth * 77).toInt().coerceIn(0, 255)
