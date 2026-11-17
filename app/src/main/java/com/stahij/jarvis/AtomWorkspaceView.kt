@@ -76,6 +76,9 @@ class AtomWorkspaceView(
     private var downY = 0f
     private var selected: OrbitalItem? = null
     private var dragging = false
+    private var forwardCoreTouch = true
+    private var touchStartedInPageStrip = false
+    private var touchStartedInDrawerZone = false
     private val gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
         override fun onDown(e: MotionEvent): Boolean = true
 
@@ -381,12 +384,17 @@ class AtomWorkspaceView(
             MotionEvent.ACTION_DOWN -> {
                 downX = event.x
                 downY = event.y
+                touchStartedInPageStrip = downY >= height - 76f * density
+                touchStartedInDrawerZone = downX <= 112f * density && downY >= height - 176f * density
+                forwardCoreTouch = !touchStartedInPageStrip && !touchStartedInDrawerZone
+                if (forwardCoreTouch) onForwardTouch(event)
                 selected = items.firstOrNull { it.page == page && it.rect.contains(event.x, event.y) }
                 dragging = false
                 if (selected == null) gestureDetector.onTouchEvent(event)
                 return true
             }
             MotionEvent.ACTION_MOVE -> {
+                if (forwardCoreTouch) onForwardTouch(event)
                 if (selected == null) {
                     gestureDetector.onTouchEvent(event)
                     return true
@@ -408,14 +416,13 @@ class AtomWorkspaceView(
                 return true
             }
             MotionEvent.ACTION_UP -> {
+                if (forwardCoreTouch) onForwardTouch(event)
                 if (selected == null) {
                     val dx = event.x - downX
                     val dy = event.y - downY
-                    val horizontalSwipe = abs(dx) > 55f * density && abs(dx) > abs(dy)
-                    val verticalSwipe = dy < -55f * density &&
-                        abs(dy) > abs(dx) &&
-                        downY > 56f * density &&
-                        downY < height - 64f * density
+                    val horizontalSwipe = touchStartedInPageStrip && abs(dx) > 55f * density && abs(dx) > abs(dy)
+                    val verticalSwipe = touchStartedInDrawerZone && dy < -55f * density &&
+                        abs(dy) > abs(dx)
                     when {
                         horizontalSwipe -> changePage(if (dx < 0f) 1 else -1)
                         verticalSwipe -> onOpenDrawer()
@@ -427,12 +434,19 @@ class AtomWorkspaceView(
                 }
                 selected = null
                 dragging = false
+                forwardCoreTouch = true
+                touchStartedInPageStrip = false
+                touchStartedInDrawerZone = false
                 return true
             }
             MotionEvent.ACTION_CANCEL -> {
+                if (forwardCoreTouch) onForwardTouch(event)
                 if (selected == null) gestureDetector.onTouchEvent(event)
                 selected = null
                 dragging = false
+                forwardCoreTouch = true
+                touchStartedInPageStrip = false
+                touchStartedInDrawerZone = false
                 return true
             }
         }
