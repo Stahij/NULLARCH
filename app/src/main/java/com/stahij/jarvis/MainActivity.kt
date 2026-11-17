@@ -11,7 +11,6 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.net.Uri
 import android.os.Bundle
-import android.provider.Settings
 import android.view.Gravity
 import android.view.View
 import android.view.inputmethod.EditorInfo
@@ -52,7 +51,6 @@ class MainActivity : Activity() {
     private var isSending = false
     private var modelReady = false
     private var voiceReply = false
-    private var voicePendingPermission = false
     private var activePersona = "Общий помощник"
     private var tts: TextToSpeech? = null
     private val maxHistoryMessages = 24
@@ -374,16 +372,6 @@ class MainActivity : Activity() {
             addBubble("Система", "Сначала подключи локальную модель через меню «Модель».", false)
             return
         }
-        if (!Settings.canDrawOverlays(this)) {
-            voicePendingPermission = true
-            startActivityForResult(
-                Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")),
-                REQUEST_OVERLAY
-            )
-            return
-        }
-        prefs.edit().putBoolean("orb_enabled", true).apply()
-        startOrbService()
         try {
             val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
@@ -853,40 +841,9 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun toggleOrb() {
-        if (Settings.canDrawOverlays(this)) {
-            prefs.edit().putBoolean("orb_enabled", true).apply()
-            startOrbService()
-            status.text = if (modelReady) "ЯДРО АКТИВНО"
-                else "ЯДРО АКТИВНО • МОДЕЛЬ НЕ ВЫБРАНА"
-        } else {
-            startActivityForResult(
-                Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")),
-                REQUEST_OVERLAY
-            )
-        }
-    }
-
-    private fun startOrbService() {
-        val intent = Intent(this, OrbService::class.java)
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-            startForegroundService(intent)
-        } else {
-            startService(intent)
-        }
-    }
-
     @Deprecated("Deprecated in Android API")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == REQUEST_OVERLAY && Settings.canDrawOverlays(this)) {
-            if (voicePendingPermission) {
-                voicePendingPermission = false
-                startVoiceInput()
-            } else {
-                toggleOrb()
-            }
-        }
         if (requestCode == REQUEST_MODEL && resultCode == RESULT_OK) {
             data?.data?.let { importModel(it) }
         }
@@ -1259,7 +1216,6 @@ class MainActivity : Activity() {
         private const val MNN_POCKET_MODEL_URL = "https://huggingface.co/taobao-mnn/MNN-Pocket-0.3B-GGUF/resolve/main/MNN-Pocket-0.3B-Instruct-Q4_1.gguf"
         private const val QWEN_MODEL_URL = "https://huggingface.co/bartowski/Qwen2.5-3B-Instruct-GGUF/resolve/main/Qwen2.5-3B-Instruct-Q4_K_M.gguf"
         private const val QWEN_MODEL_SHA256 = "9c9f56a391a3abbd5b89d0245bf6106081bcc3173119d4229235dd9d23253f94"
-        private const val REQUEST_OVERLAY = 501
         private const val REQUEST_MODEL = 502
         private const val REQUEST_VOICE = 503
     }
