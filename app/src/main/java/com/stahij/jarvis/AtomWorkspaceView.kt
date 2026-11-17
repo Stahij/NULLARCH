@@ -36,7 +36,8 @@ class AtomWorkspaceView(
     private val installedApps: List<LauncherApp>,
     private val onOpenChat: () -> Unit,
     private val onOpenSettings: () -> Unit,
-    private val onOpenDrawer: () -> Unit
+    private val onOpenDrawer: () -> Unit,
+    private val onForwardTouch: (MotionEvent) -> Unit
 ) : View(context) {
     private data class OrbitalItem(
         val app: LauncherApp,
@@ -168,6 +169,8 @@ class AtomWorkspaceView(
         pageCount = maxOf(1, prefs.getInt("page_count_v2", 1), (items.maxOfOrNull { it.page } ?: 0) + 1)
         page = prefs.getInt("current_page_v2", 0).coerceIn(0, pageCount - 1)
     }
+
+    fun getCoreApps(): List<LauncherApp> = items.map { it.app }
 
     fun addApp(app: LauncherApp): Boolean {
         val id = app.packageName + "/" + app.className
@@ -354,45 +357,10 @@ class AtomWorkspaceView(
         paint.style = Paint.Style.FILL
     }
 
+    // Rendering is owned exclusively by the Gemini WebGL scene.
+    // This view remains a transparent gesture layer for launcher navigation.
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        val w = width.toFloat()
-        val h = height.toFloat()
-        if (w <= 0f || h <= 0f) return
-        val cx = w * .5f
-        val cy = h * .49f
-        val base = min(w, h)
-        val coreRadius = base * .185f
-        val now = SystemClock.uptimeMillis()
-        if (running) animationTime += ((now - lastFrameUptime).coerceIn(0L, 50L)) / 1000f
-        lastFrameUptime = now
-        val elapsed = animationTime
-        val visibleItems = items.filter { it.page == page }
-
-        visibleItems.forEach { drawOrbit(canvas, it, cx, cy, base, coreRadius, elapsed) }
-
-        val projected = visibleItems.mapNotNull { item ->
-            val angle = item.angle + if (running) elapsed * item.angularSpeed else 0f
-            val point = project(orbitalPoint(item, angle, item.orbit, elapsed), cx, cy, base)
-            if (isOccludedByCore(point, cx, cy, coreRadius + base * .13f)) {
-                item.rect.setEmpty()
-                null
-            } else {
-                Triple(item, point, angle)
-            }
-        }.sortedBy { it.second.z }
-
-        projected.forEach { (item, point, _) ->
-            val depth = ((point.z / .46f) * .5f + .5f).coerceIn(0f, 1f)
-            val scale = .78f + depth * .30f
-            val iconSize = 38f * density * scale
-            val alpha = (178 + depth * 77).toInt().coerceIn(0, 255)
-            item.rect.set(point.x - iconSize / 2f, point.y - iconSize / 2f, point.x + iconSize / 2f, point.y + iconSize / 2f)
-            drawPlasmaGlassIcon(canvas, item, point.x, point.y, iconSize, alpha, depth, elapsed)
-            textPaint.alpha = alpha
-            canvas.drawText(item.app.label.take(16), point.x, point.y + iconSize * .78f + 12f * density, textPaint)
-        }
-        if (running) postInvalidateOnAnimation()
     }
 
     private fun isCoreAt(x: Float, y: Float): Boolean {
@@ -405,6 +373,7 @@ class AtomWorkspaceView(
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
+        onForwardTouch(event)
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 downX = event.x
