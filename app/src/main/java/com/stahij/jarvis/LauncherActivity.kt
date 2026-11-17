@@ -106,7 +106,7 @@ class LauncherActivity : Activity() {
     }
 
     private fun showCoreMenu() {
-        val options = arrayOf("Plasma Core", "Настройки и инструменты")
+        val options = arrayOf("Plasma Core", "Жесты рабочего стола", "Настройки и инструменты")
         AlertDialog.Builder(this)
             .setTitle("Визуальное ядро Jarvis")
             .setItems(options) { _, which ->
@@ -114,11 +114,45 @@ class LauncherActivity : Activity() {
                     0 -> {
                         if (::coreView.isInitialized) coreView.bridge.setTheme(selectedCore)
                     }
-                    1 -> startActivity(Intent(this, MainActivity::class.java).apply {
+                    1 -> showGestureSettings()
+                    2 -> startActivity(Intent(this, MainActivity::class.java).apply {
                         putExtra(MainActivity.EXTRA_TOOLS_ONLY, true)
                     })
                 }
             }
+            .show()
+    }
+
+    private fun showGestureSettings() {
+        val prefs = getSharedPreferences("jarvis_launcher_gestures", MODE_PRIVATE)
+        val keys = arrayOf("page_swipe", "drawer_swipe", "core_double_tap", "core_long_press", "core_tap", "core_rotate")
+        val labels = arrayOf(
+            "Смена рабочих столов — свайп в нижней полосе",
+            "Каталог приложений — свайп вверх из левого нижнего угла",
+            "Открыть чат Jarvis — двойное касание ядра",
+            "Настройки ядра — долгое нажатие на ядро",
+            "Остановить / возобновить анимацию — одиночное касание ядра",
+            "Вращать ядро — перетаскивание по центральной области"
+        )
+        val checked = BooleanArray(keys.size) { i -> prefs.getBoolean(keys[i], true) }
+        AlertDialog.Builder(this)
+            .setTitle("Жесты рабочего стола")
+            .setMultiChoiceItems(labels, checked) { _, which, enabled ->
+                prefs.edit().putBoolean(keys[which], enabled).apply()
+            }
+            .setPositiveButton("Сохранить") { _, _ ->
+                workspace.reloadGestureSettings()
+                coreView.bridge.setRotationEnabled(prefs.getBoolean("core_rotate", true))
+                Toast.makeText(this, "Жесты обновлены", Toast.LENGTH_SHORT).show()
+            }
+            .setNeutralButton("Сбросить") { _, _ ->
+                prefs.edit().clear().apply()
+                workspace.reloadGestureSettings()
+                coreView.bridge.setRotationEnabled(true)
+                Toast.makeText(this, "Восстановлены жесты по умолчанию", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Отмена", null)
+            .setMessage("Верхний свайп от края экрана, шторка уведомлений, быстрые настройки и системный экран последних приложений остаются за Android/HyperOS — Jarvis не перехватывает эти системные зоны.")
             .show()
     }
 
