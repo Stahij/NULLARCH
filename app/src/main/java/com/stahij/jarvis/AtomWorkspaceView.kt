@@ -216,8 +216,8 @@ class AtomWorkspaceView(
 
     private fun project(point: OrbitalPoint, cx: Float, cy: Float, base: Float): OrbitalPoint {
         // Camera sits in front of the scene (+Z), matching the WebGL Plasma Core.
-        val cameraDistance = base * 1.65f
-        val perspective = (cameraDistance / (cameraDistance - point.z * base)).coerceIn(.68f, 1.48f)
+        val cameraDistance = 1.65f
+        val perspective = (cameraDistance / (cameraDistance - point.z)).coerceIn(.68f, 1.48f)
         return OrbitalPoint(
             cx + point.x * base * perspective,
             cy - point.y * base * perspective,
@@ -233,7 +233,7 @@ class AtomWorkspaceView(
     }
 
     private fun drawOrbit(canvas: Canvas, item: OrbitalItem, cx: Float, cy: Float, base: Float, coreRadius: Float, time: Float) {
-        val radius = base * item.orbit
+        val radius = item.orbit
         val path = Path()
         var drawing = false
         val segments = 72
@@ -325,7 +325,7 @@ class AtomWorkspaceView(
 
         val projected = visibleItems.mapNotNull { item ->
             val angle = item.angle + if (running) elapsed * .14f else 0f
-            val point = project(orbitalPoint(item, angle, base * item.orbit), cx, cy, base)
+            val point = project(orbitalPoint(item, angle, item.orbit), cx, cy, base)
             if (isOccludedByCore(point, cx, cy, coreRadius + base * .13f)) {
                 item.rect.setEmpty()
                 null
