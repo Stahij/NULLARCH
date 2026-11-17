@@ -53,7 +53,7 @@ class JarvisCoreBridge(
             array.put(JSONObject().apply {
                 put("id", app.packageName + "/" + app.className)
                 put("label", app.label)
-                put("radius", 1.78 + (index % 3) * 0.18)
+                put("radius", 1.28 + (index % 3) * 0.09)
                 put("angle", index.toDouble() / maxOf(1, apps.size) * PI * 2.0)
                 put("speed", 0.12 + (index % 5) * 0.018)
                 put("tiltX", tilts.first)
