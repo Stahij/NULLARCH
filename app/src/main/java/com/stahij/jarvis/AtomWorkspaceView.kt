@@ -3,15 +3,17 @@ package com.stahij.jarvis
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.LinearGradient
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.RectF
+import android.graphics.Shader
 import android.graphics.drawable.Drawable
 import android.os.SystemClock
-import android.view.MotionEvent
 import android.view.GestureDetector
+import android.view.MotionEvent
 import android.view.View
 import kotlin.math.abs
-import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.sin
@@ -25,9 +27,9 @@ data class LauncherApp(
 )
 
 /**
- * Transparent interaction layer above the WebGL core.
- * It owns app icons, placement, paging and touch input; the WebView below
- * owns only the 3D background/core rendering.
+ * Transparent interaction layer above the WebGL Plasma Core.
+ * Icons are rendered as custom Plasma Glass modules and move on independent
+ * 3D orbital planes. The WebGL core remains responsible for the central sphere.
  */
 class AtomWorkspaceView(
     context: Context,
@@ -41,18 +43,27 @@ class AtomWorkspaceView(
         var angle: Float,
         var orbit: Float,
         var page: Int,
+        val tiltX: Float,
+        val tiltY: Float,
+        val tiltZ: Float,
+        val phase: Float,
         var rect: RectF = RectF()
     )
+
+    private data class OrbitalPoint(val x: Float, val y: Float, val z: Float)
 
     private val prefs = context.getSharedPreferences("jarvis_atom_workspace", Context.MODE_PRIVATE)
     private val density = resources.displayMetrics.density
     private val items = mutableListOf<OrbitalItem>()
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val iconPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+    private val iconPath = Path()
     private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.WHITE
         textSize = 10f * density
         textAlign = Paint.Align.CENTER
         typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
+        setShadowLayer(4f * density, 0f, 1f * density, Color.BLACK)
     }
     private var page = 0
     private var pageCount = 1
@@ -103,6 +114,21 @@ class AtomWorkspaceView(
         loadLayout()
     }
 
+    private fun orbitalItem(app: LauncherApp, angle: Float, orbit: Float, page: Int): OrbitalItem {
+        val seed = app.packageName.hashCode().toLong().and(0xffffffffL)
+        fun unit(shift: Int): Float = ((seed shr shift) and 0xffffL).toFloat() / 65535f
+        return OrbitalItem(
+            app = app,
+            angle = angle,
+            orbit = orbit,
+            page = page,
+            tiltX = (unit(0) - .5f) * 1.18f,
+            tiltY = (unit(8) - .5f) * 1.30f,
+            tiltZ = (unit(16) - .5f) * .72f,
+            phase = unit(24) * (Math.PI * 2.0).toFloat()
+        )
+    }
+
     private fun loadLayout() {
         val saved = prefs.getString("layout_v2", null)
         val savedMap = HashMap<String, Triple<Float, Float, Int>>()
@@ -123,10 +149,10 @@ class AtomWorkspaceView(
         val appsById = installedApps.associateBy { it.packageName + "/" + it.className }
         savedMap.forEach { (id, position) ->
             val app = appsById[id] ?: return@forEach
-            items.add(OrbitalItem(
+            items.add(orbitalItem(
                 app,
                 position.first,
-                position.second.coerceIn(.20f, .44f),
+                position.second.coerceIn(.22f, .46f),
                 position.third.coerceAtLeast(0)
             ))
         }
@@ -139,8 +165,8 @@ class AtomWorkspaceView(
         if (items.any { it.app.packageName + "/" + it.app.className == id }) return false
         val pageItems = items.count { it.page == page }
         val angle = ((pageItems % 8).toFloat() / 8f * (Math.PI * 2.0)).toFloat()
-        val orbit = (.25f + (pageItems % 3) * .075f).coerceIn(.20f, .44f)
-        items.add(OrbitalItem(app, angle, orbit, page))
+        val orbit = (.27f + (pageItems % 3) * .065f).coerceIn(.22f, .46f)
+        items.add(orbitalItem(app, angle, orbit, page))
         saveLayout()
         invalidate()
         return true
@@ -153,7 +179,6 @@ class AtomWorkspaceView(
         invalidate()
     }
 
-    // A tap on the center freezes orbital motion at the saved base positions.
     fun toggleMotion() {
         motionEnabled = !motionEnabled
         running = motionEnabled
@@ -170,6 +195,120 @@ class AtomWorkspaceView(
         invalidate()
     }
 
+    private fun orbitalPoint(item: OrbitalItem, angle: Float, radius: Float, phaseOffset: Float = 0f): OrbitalPoint {
+        val a = angle + phaseOffset
+        var x = cos(a) * radius
+        var y = sin(a) * radius * .82f
+        var z = sin(a + item.phase) * radius * .16f
+
+        val cx = cos(item.tiltX); val sx = sin(item.tiltX)
+        val cy = cos(item.tiltY); val sy = sin(item.tiltY)
+        val cz = cos(item.tiltZ); val sz = sin(item.tiltZ)
+
+        val y1 = y * cx - z * sx
+        val z1 = y * sx + z * cx
+        val x2 = x * cy + z1 * sy
+        val z2 = -x * sy + z1 * cy
+        val x3 = x2 * cz - y1 * sz
+        val y3 = x2 * sz + y1 * cz
+        return OrbitalPoint(x3, y3, z2)
+    }
+
+    private fun project(point: OrbitalPoint, cx: Float, cy: Float, base: Float): OrbitalPoint {
+        // Camera sits in front of the scene (+Z), matching the WebGL Plasma Core.
+        val cameraDistance = base * 1.65f
+        val perspective = (cameraDistance / (cameraDistance - point.z * base)).coerceIn(.68f, 1.48f)
+        return OrbitalPoint(
+            cx + point.x * base * perspective,
+            cy - point.y * base * perspective,
+            point.z
+        )
+    }
+
+    private fun isOccludedByCore(point: OrbitalPoint, cx: Float, cy: Float, coreRadius: Float): Boolean {
+        if (point.z >= 0f) return false
+        val dx = point.x - cx
+        val dy = point.y - cy
+        return dx * dx + dy * dy < coreRadius * coreRadius
+    }
+
+    private fun drawOrbit(canvas: Canvas, item: OrbitalItem, cx: Float, cy: Float, base: Float, coreRadius: Float, time: Float) {
+        val radius = base * item.orbit
+        val path = Path()
+        var drawing = false
+        val segments = 72
+        for (i in 0..segments) {
+            val a = (i.toFloat() / segments) * (Math.PI * 2.0).toFloat()
+            val p = project(orbitalPoint(item, a, radius), cx, cy, base)
+            val hidden = isOccludedByCore(p, cx, cy, coreRadius)
+            if (hidden) {
+                drawing = false
+            } else if (!drawing) {
+                path.moveTo(p.x, p.y)
+                drawing = true
+            } else {
+                path.lineTo(p.x, p.y)
+            }
+        }
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = .8f * density
+        paint.strokeCap = Paint.Cap.ROUND
+        paint.color = Color.argb(26, 65, 205, 255)
+        canvas.drawPath(path, paint)
+        paint.style = Paint.Style.FILL
+    }
+
+    private fun drawPlasmaGlassIcon(canvas: Canvas, item: OrbitalItem, x: Float, y: Float, size: Float, alpha: Int, depth: Float) {
+        val rect = RectF(x - size / 2f, y - size / 2f, x + size / 2f, y + size / 2f)
+        val radius = size * .25f
+        val outer = RectF(rect).apply { inset(-1.8f * density, -1.8f * density) }
+
+        paint.style = Paint.Style.FILL
+        paint.color = Color.argb((alpha * .16f).toInt(), 28, 164, 235)
+        paint.setShadowLayer((5f + depth * 5f) * density, 0f, 0f, Color.argb((alpha * .42f).toInt(), 0, 177, 255))
+        canvas.drawRoundRect(outer, radius, radius, paint)
+        paint.clearShadowLayer()
+
+        paint.shader = LinearGradient(
+            rect.left, rect.top, rect.right, rect.bottom,
+            intArrayOf(Color.argb(alpha * 3 / 5, 19, 75, 112), Color.argb(alpha * 2 / 5, 5, 22, 43), Color.argb(alpha * 3 / 5, 24, 91, 133)),
+            null, Shader.TileMode.CLAMP
+        )
+        canvas.drawRoundRect(rect, radius, radius, paint)
+        paint.shader = null
+
+        iconPath.reset()
+        iconPath.addRoundRect(rect, radius, radius, Path.Direction.CW)
+        val save = canvas.save()
+        canvas.clipPath(iconPath)
+        val iconInset = size * .105f
+        val iconRect = RectF(rect).apply { inset(iconInset, iconInset) }
+        val oldAlpha = item.app.icon.alpha
+        item.app.icon.alpha = alpha
+        item.app.icon.setBounds(iconRect.left.toInt(), iconRect.top.toInt(), iconRect.right.toInt(), iconRect.bottom.toInt())
+        item.app.icon.draw(canvas)
+        item.app.icon.alpha = oldAlpha
+
+        // A restrained glass reflection gives the tile a material, not a flat sticker.
+        paint.shader = LinearGradient(
+            rect.left, rect.top, rect.right, rect.bottom,
+            intArrayOf(Color.argb((alpha * .30f).toInt(), 255, 255, 255), Color.TRANSPARENT, Color.TRANSPARENT),
+            floatArrayOf(0f, .42f, 1f), Shader.TileMode.CLAMP
+        )
+        canvas.drawRoundRect(rect, radius, radius, paint)
+        paint.shader = null
+        canvas.restoreToCount(save)
+
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = 1.15f * density
+        paint.color = Color.argb(alpha, 92, 218, 255)
+        canvas.drawRoundRect(rect, radius, radius, paint)
+        paint.strokeWidth = .65f * density
+        paint.color = Color.argb(alpha / 2, 220, 249, 255)
+        canvas.drawRoundRect(RectF(rect).apply { inset(2f * density, 2f * density) }, radius * .82f, radius * .82f, paint)
+        paint.style = Paint.Style.FILL
+    }
+
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         val w = width.toFloat()
@@ -178,35 +317,32 @@ class AtomWorkspaceView(
         val cx = w * .5f
         val cy = h * .49f
         val base = min(w, h)
+        val coreRadius = base * .185f
         val elapsed = if (running) SystemClock.uptimeMillis() / 1000f else 0f
+        val visibleItems = items.filter { it.page == page }
 
-        items.filter { it.page == page }.forEachIndexed { index, item ->
-            // Match PlasmaCore.group.rotation.y (0.14 rad/s) for a unified orbital motion.
+        visibleItems.forEach { drawOrbit(canvas, it, cx, cy, base, coreRadius, elapsed) }
+
+        val projected = visibleItems.mapNotNull { item ->
             val angle = item.angle + if (running) elapsed * .14f else 0f
-            val radius = base * item.orbit
-            val x = cx + cos(angle.toDouble()).toFloat() * radius
-            val y = cy + sin(angle.toDouble()).toFloat() * radius * .57f
-            val depth = (sin(angle.toDouble()).toFloat() + 1f) * .5f
-            val scale = .72f + depth * .38f
-            val iconSize = 34f * density * scale
-            val alpha = (155 + depth * 100).toInt()
-            paint.color = Color.argb(alpha, 12, 30, 48)
-            paint.style = Paint.Style.FILL
-            canvas.drawCircle(x, y, iconSize * .67f, paint)
-            paint.color = Color.argb(90 + (depth * 90).toInt(), 80, 203, 239)
-            paint.style = Paint.Style.STROKE
-            paint.strokeWidth = 1.1f * density
-            canvas.drawCircle(x, y, iconSize * .67f, paint)
-            paint.style = Paint.Style.FILL
-            val rect = RectF(x - iconSize / 2f, y - iconSize / 2f, x + iconSize / 2f, y + iconSize / 2f)
-            item.rect.set(rect)
-            val oldAlpha = item.app.icon.alpha
-            item.app.icon.alpha = alpha
-            item.app.icon.setBounds(rect.left.toInt(), rect.top.toInt(), rect.right.toInt(), rect.bottom.toInt())
-            item.app.icon.draw(canvas)
-            item.app.icon.alpha = oldAlpha
+            val point = project(orbitalPoint(item, angle, base * item.orbit), cx, cy, base)
+            if (isOccludedByCore(point, cx, cy, coreRadius)) {
+                item.rect.setEmpty()
+                null
+            } else {
+                Triple(item, point, angle)
+            }
+        }.sortedBy { it.second.z }
+
+        projected.forEach { (item, point, _) ->
+            val depth = ((point.z / (base * .55f)) + 1f).coerceIn(0f, 1f)
+            val scale = .78f + depth * .30f
+            val iconSize = 38f * density * scale
+            val alpha = (178 + depth * 77).toInt().coerceIn(0, 255)
+            item.rect.set(point.x - iconSize / 2f, point.y - iconSize / 2f, point.x + iconSize / 2f, point.y + iconSize / 2f)
+            drawPlasmaGlassIcon(canvas, item, point.x, point.y, iconSize, alpha, depth)
             textPaint.alpha = alpha
-            canvas.drawText(item.app.label.take(16), x, y + iconSize * .78f + 12f * density, textPaint)
+            canvas.drawText(item.app.label.take(16), point.x, point.y + iconSize * .78f + 12f * density, textPaint)
         }
         if (running) postInvalidateOnAnimation()
     }
@@ -243,9 +379,9 @@ class AtomWorkspaceView(
                     val cx = width * .5f
                     val cy = height * .49f
                     val x = event.x - cx
-                    val y = (event.y - cy) / .57f
-                    item.angle = atan2(y, x)
-                    item.orbit = (sqrt(x * x + y * y) / min(width, height)).coerceIn(.20f, .44f)
+                    val y = (event.y - cy) / .82f
+                    item.angle = kotlin.math.atan2(y, x)
+                    item.orbit = (sqrt(x * x + y * y) / min(width, height)).coerceIn(.22f, .46f)
                     item.rect.offsetTo(event.x - item.rect.width() / 2f, event.y - item.rect.height() / 2f)
                     invalidate()
                 }
