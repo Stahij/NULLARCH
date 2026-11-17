@@ -37,7 +37,8 @@ class AtomWorkspaceView(
     private val onOpenChat: () -> Unit,
     private val onOpenSettings: () -> Unit,
     private val onOpenDrawer: () -> Unit,
-    private val onForwardTouch: (MotionEvent) -> Unit
+    private val onForwardTouch: (MotionEvent) -> Unit,
+    private val onAppsChanged: (List<LauncherApp>) -> Unit
 ) : View(context) {
     private data class OrbitalItem(
         val app: LauncherApp,
@@ -170,7 +171,7 @@ class AtomWorkspaceView(
         page = prefs.getInt("current_page_v2", 0).coerceIn(0, pageCount - 1)
     }
 
-    fun getCoreApps(): List<LauncherApp> = items.map { it.app }
+    fun getCoreApps(): List<LauncherApp> = items.filter { it.page == page }.map { it.app }
 
     fun addApp(app: LauncherApp): Boolean {
         val id = app.packageName + "/" + app.className
@@ -180,6 +181,7 @@ class AtomWorkspaceView(
         val orbit = (.27f + (pageItems % 3) * .065f).coerceIn(.22f, .46f)
         items.add(orbitalItem(app, angle, orbit, page))
         saveLayout()
+        onAppsChanged(getCoreApps())
         invalidate()
         return true
     }
@@ -188,6 +190,7 @@ class AtomWorkspaceView(
         if (delta > 0 && page == pageCount - 1) pageCount++
         page = (page + delta).coerceIn(0, pageCount - 1)
         prefs.edit().putInt("current_page_v2", page).putInt("page_count_v2", pageCount).apply()
+        onAppsChanged(getCoreApps())
         invalidate()
     }
 
