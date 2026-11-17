@@ -1,8 +1,20 @@
 package com.stahij.jarvis.core
 
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.util.Base64
+import android.webkit.JavascriptInterface
 import android.webkit.WebView
+import com.stahij.jarvis.LauncherApp
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.ByteArrayOutputStream
+import kotlin.math.PI
 
-class JarvisCoreBridge(private val webView: WebView) {
+class JarvisCoreBridge(
+    private val webView: WebView,
+    private val onNodeClick: (String) -> Unit
+) {
     private val pending = ArrayDeque<String>()
     private var ready = false
     private var disposed = false
@@ -15,9 +27,62 @@ class JarvisCoreBridge(private val webView: WebView) {
         }
     }
 
+    @JavascriptInterface
+    fun onNodeClick(id: String) {
+        webView.post {
+            if (!disposed) onNodeClick.invoke(id)
+        }
+    }
+
     fun setTheme(theme: CoreTheme) = evaluate("JarvisCoreAPI.setTheme('${theme.value}')")
     fun setQuality(quality: CoreQuality) = evaluate("JarvisCoreAPI.setQuality('${quality.value}')")
     fun setAssistantState(state: AssistantState) = evaluate("JarvisCoreAPI.setState('${state.value}')")
+
+    fun setNodes(apps: List<LauncherApp>) {
+        val array = JSONArray()
+        apps.take(16).forEachIndexed { index, app ->
+            val seed = app.packageName.hashCode().toLong().and(0xffffffffL)
+            val plane = (seed % 4L).toInt()
+            val tilts = when (plane) {
+                0 -> 0.12 to 0.12
+                1 -> 0.72 to 0.08
+                2 -> 0.42 to 0.62
+                else -> -0.42 to -0.62
+            }
+            array.put(JSONObject().apply {
+                put("id", app.packageName + "/" + app.className)
+                put("label", app.label)
+                put("radius", 1.78 + (index % 3) * 0.18)
+                put("angle", index.toDouble() / maxOf(1, apps.size) * PI * 2.0)
+                put("speed", 0.12 + (index % 5) * 0.018)
+                put("tiltX", tilts.first)
+                put("tiltZ", tilts.second)
+                put("glyphIndex", index % 8)
+                put("iconData", encodeIcon(app))
+            })
+        }
+        evaluate("JarvisCoreAPI.setNodes($array)")
+    }
+
+    private fun encodeIcon(app: LauncherApp): String {
+        return try {
+            val size = 96
+            val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+            val drawable = app.icon
+            val old = drawable.bounds
+            drawable.setBounds(0, 0, size, size)
+            drawable.draw(canvas)
+            drawable.bounds = old
+            val output = ByteArrayOutputStream()
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)
+            bitmap.recycle()
+            "data:image/png;base64," + Base64.encodeToString(output.toByteArray(), Base64.NO_WRAP)
+        } catch (_: Exception) {
+            ""
+        }
+    }
+
     fun pause() = evaluate("JarvisCoreAPI.pause()")
     fun resume() = evaluate("JarvisCoreAPI.resume()")
 
@@ -40,7 +105,9 @@ class JarvisCoreBridge(private val webView: WebView) {
         }
     }
 
-    private fun evaluateNow(script: String) { if (!disposed) webView.evaluateJavascript(script, null) }
+    private fun evaluateNow(script: String) {
+        if (!disposed) webView.evaluateJavascript(script, null)
+    }
 
     enum class CoreTheme(val value: String) { PLASMA("plasma") }
     enum class CoreQuality(val value: String) { AUTO("auto"), HIGH("high"), MEDIUM("medium"), LOW("low") }
