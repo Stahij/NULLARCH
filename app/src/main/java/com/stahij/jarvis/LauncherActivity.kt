@@ -70,7 +70,9 @@ class LauncherActivity : Activity() {
     }
 
     private fun buildWorkspace() {
-        coreView = JarvisCoreView(this).apply {
+        coreView = JarvisCoreView(this, onNodeClick = { id ->
+            installedApps.firstOrNull { it.packageName + "/" + it.className == id }?.let { launchApp(it) }
+        }).apply {
             bridge.setTheme(selectedCore)
             bridge.setQuality(JarvisCoreBridge.CoreQuality.AUTO)
             bridge.setAssistantState(JarvisCoreBridge.AssistantState.IDLE)
@@ -80,14 +82,27 @@ class LauncherActivity : Activity() {
             installedApps,
             onOpenChat = { startActivity(Intent(this, ChatHubActivity::class.java)) },
             onOpenSettings = { showCoreMenu() },
-            onOpenDrawer = { showAppDrawer() }
+            onOpenDrawer = { showAppDrawer() },
+            onForwardTouch = { event -> coreView.dispatchPointerEvent(event) },
+            onAppsChanged = { apps -> coreView.bridge.setNodes(apps) }
         )
+        coreView.bridge.setNodes(workspace.getCoreApps())
         val root = FrameLayout(this).apply {
             setBackgroundColor(Color.rgb(3, 8, 20))
             addView(coreView, FrameLayout.LayoutParams(-1, -1))
             addView(workspace, FrameLayout.LayoutParams(-1, -1))
         }
         setContentView(root)
+    }
+
+    private fun launchApp(app: LauncherApp) {
+        try {
+            startActivity(Intent(Intent.ACTION_MAIN)
+                .addCategory(Intent.CATEGORY_LAUNCHER)
+                .setClassName(app.packageName, app.className))
+        } catch (_: Exception) {
+            Toast.makeText(this, "Не удалось открыть ${app.label}", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun showCoreMenu() {
@@ -178,6 +193,7 @@ class LauncherActivity : Activity() {
                     isFocusable = true
                     setOnClickListener {
                         val added = workspace.addApp(app)
+                        if (added) coreView.bridge.setNodes(workspace.getCoreApps())
                         Toast.makeText(
                             this@LauncherActivity,
                             if (added) "${app.label} добавлено на рабочий стол" else "Приложение уже добавлено",
