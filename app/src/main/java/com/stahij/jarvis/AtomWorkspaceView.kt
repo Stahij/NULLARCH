@@ -79,42 +79,33 @@ class AtomWorkspaceView(
     private var forwardCoreTouch = true
     private var touchStartedInPageStrip = false
     private var touchStartedInDrawerZone = false
+    private var gesturePageSwipe = true
+    private var gestureDrawerSwipe = true
+    private var gestureCoreTap = true
+    private var gestureCoreDoubleTap = true
+    private var gestureCoreLongPress = true
     private val gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
         override fun onDown(e: MotionEvent): Boolean = true
 
         override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
-            if (isCoreAt(e.x, e.y)) toggleMotion()
+            if (gestureCoreTap && isCoreAt(e.x, e.y)) toggleMotion()
             return true
         }
 
         override fun onDoubleTap(e: MotionEvent): Boolean {
-            if (isCoreAt(e.x, e.y)) onOpenChat()
+            if (gestureCoreDoubleTap && isCoreAt(e.x, e.y)) onOpenChat()
             return true
         }
 
         override fun onLongPress(e: MotionEvent) {
-            if (isCoreAt(e.x, e.y)) onOpenSettings()
-        }
-
-        override fun onFling(e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
-            if (e1 == null) return false
-            val dx = e2.x - e1.x
-            val dy = e2.y - e1.y
-            if (abs(dy) > abs(dx) && dy < -70f * density && e1.y > 56f * density && e1.y < height - 64f * density) {
-                onOpenDrawer()
-                return true
-            }
-            if (abs(dx) > 70f * density && abs(dx) > abs(dy)) {
-                changePage(if (dx < 0) 1 else -1)
-                return true
-            }
-            return false
+            if (gestureCoreLongPress && isCoreAt(e.x, e.y)) onOpenSettings()
         }
     })
 
     init {
         isFocusable = true
         isClickable = true
+        reloadGestureSettings()
         setBackgroundColor(Color.TRANSPARENT)
         setLayerType(View.LAYER_TYPE_HARDWARE, null)
         loadLayout()
@@ -175,6 +166,15 @@ class AtomWorkspaceView(
     }
 
     fun getCoreApps(): List<LauncherApp> = items.filter { it.page == page }.map { it.app }
+
+    fun reloadGestureSettings() {
+        val settings = context.getSharedPreferences("jarvis_launcher_gestures", Context.MODE_PRIVATE)
+        gesturePageSwipe = settings.getBoolean("page_swipe", true)
+        gestureDrawerSwipe = settings.getBoolean("drawer_swipe", true)
+        gestureCoreTap = settings.getBoolean("core_tap", true)
+        gestureCoreDoubleTap = settings.getBoolean("core_double_tap", true)
+        gestureCoreLongPress = settings.getBoolean("core_long_press", true)
+    }
 
     fun addApp(app: LauncherApp): Boolean {
         val id = app.packageName + "/" + app.className
@@ -379,13 +379,12 @@ class AtomWorkspaceView(
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        onForwardTouch(event)
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 downX = event.x
                 downY = event.y
-                touchStartedInPageStrip = downY >= height - 76f * density
-                touchStartedInDrawerZone = downX <= 112f * density && downY >= height - 176f * density
+                touchStartedInDrawerZone = gestureDrawerSwipe && downX <= 112f * density && downY >= height - 176f * density
+                touchStartedInPageStrip = gesturePageSwipe && downY >= height - 76f * density && !touchStartedInDrawerZone
                 forwardCoreTouch = !touchStartedInPageStrip && !touchStartedInDrawerZone
                 if (forwardCoreTouch) onForwardTouch(event)
                 selected = items.firstOrNull { it.page == page && it.rect.contains(event.x, event.y) }
@@ -420,8 +419,8 @@ class AtomWorkspaceView(
                 if (selected == null) {
                     val dx = event.x - downX
                     val dy = event.y - downY
-                    val horizontalSwipe = touchStartedInPageStrip && abs(dx) > 55f * density && abs(dx) > abs(dy)
-                    val verticalSwipe = touchStartedInDrawerZone && dy < -55f * density &&
+                    val horizontalSwipe = gesturePageSwipe && touchStartedInPageStrip && abs(dx) > 55f * density && abs(dx) > abs(dy)
+                    val verticalSwipe = gestureDrawerSwipe && touchStartedInDrawerZone && dy < -55f * density &&
                         abs(dy) > abs(dx)
                     when {
                         horizontalSwipe -> changePage(if (dx < 0f) 1 else -1)
