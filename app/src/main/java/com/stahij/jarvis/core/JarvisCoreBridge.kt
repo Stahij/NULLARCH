@@ -42,7 +42,7 @@ class JarvisCoreBridge(private val webView: WebView) {
 
     private fun evaluateNow(script: String) { if (!disposed) webView.evaluateJavascript(script, null) }
 
-    enum class CoreTheme(val value: String) { ATOMIC("atomic"), PLASMA("plasma") }
+    enum class CoreTheme(val value: String) { PLASMA("plasma") }
     enum class CoreQuality(val value: String) { AUTO("auto"), HIGH("high"), MEDIUM("medium"), LOW("low") }
     enum class AssistantState(val value: String) { IDLE("idle"), LISTENING("listening"), PROCESSING("processing"), SPEAKING("speaking") }
 }
