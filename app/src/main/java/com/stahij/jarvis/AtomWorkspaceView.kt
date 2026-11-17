@@ -7,6 +7,7 @@ import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
+import android.graphics.RadialGradient
 import android.graphics.Shader
 import android.graphics.drawable.Drawable
 import android.os.SystemClock
@@ -68,6 +69,8 @@ class AtomWorkspaceView(
     private var pageCount = 1
     private var running = true
     private var motionEnabled = true
+    private var animationTime = 0f
+    private var lastFrameUptime = SystemClock.uptimeMillis()
     private var downX = 0f
     private var downY = 0f
     private var selected: OrbitalItem? = null
@@ -193,29 +196,41 @@ class AtomWorkspaceView(
     }
 
     fun resumeMotion() {
+        lastFrameUptime = SystemClock.uptimeMillis()
         running = motionEnabled
         invalidate()
     }
 
     fun pauseMotion() {
         running = false
+        lastFrameUptime = SystemClock.uptimeMillis()
         invalidate()
     }
 
-    private fun orbitalPoint(item: OrbitalItem, angle: Float, radius: Float, phaseOffset: Float = 0f): OrbitalPoint {
+    private fun orbitalPoint(item: OrbitalItem, angle: Float, radius: Float, elapsed: Float, phaseOffset: Float = 0f): OrbitalPoint {
         val a = angle + phaseOffset
-        // A true ellipse in one fixed plane. No wobble or per-frame axis changes.
         val x = cos(a) * radius
         val y = sin(a) * radius * .78f
         val z = 0f
 
+        // Local orbital plane: each app belongs to one stable 3D plane.
         val cx = cos(item.tiltX); val sx = sin(item.tiltX)
         val cy = cos(item.tiltY); val sy = sin(item.tiltY)
         val y1 = y * cx - z * sx
         val z1 = y * sx + z * cx
-        val x2 = x * cy + z1 * sy
+        val x1 = x * cy + z1 * sy
         val z2 = -x * sy + z1 * cy
-        return OrbitalPoint(x2, y1, z2)
+
+        // Slow global precession prevents the whole orbital system from reading as a flat drawing.
+        val globalY = elapsed * .14f
+        val gy = cos(globalY); val gs = sin(globalY)
+        val x2 = x1 * gy + z2 * gs
+        val z3 = -x1 * gs + z2 * gy
+        val globalX = sin(elapsed * .35f) * .05f
+        val gx = cos(globalX); val gxs = sin(globalX)
+        val y2 = y1 * gx - z3 * gxs
+        val z4 = y1 * gxs + z3 * gx
+        return OrbitalPoint(x2, y2, z4)
     }
 
     private fun project(point: OrbitalPoint, cx: Float, cy: Float, base: Float): OrbitalPoint {
@@ -237,79 +252,106 @@ class AtomWorkspaceView(
     }
 
     private fun drawOrbit(canvas: Canvas, item: OrbitalItem, cx: Float, cy: Float, base: Float, coreRadius: Float, time: Float) {
-        val radius = item.orbit
-        val path = Path()
-        var drawing = false
-        val segments = 72
+        val backPath = Path()
+        val frontPath = Path()
+        var activePath: Path? = null
+        val segments = 120
         for (i in 0..segments) {
             val a = (i.toFloat() / segments) * (Math.PI * 2.0).toFloat()
-            val p = project(orbitalPoint(item, a, radius), cx, cy, base)
+            val p = project(orbitalPoint(item, a, item.orbit, time), cx, cy, base)
             val hidden = isOccludedByCore(p, cx, cy, coreRadius)
+            val target = if (p.z < 0f) backPath else frontPath
             if (hidden) {
-                drawing = false
-            } else if (!drawing) {
-                path.moveTo(p.x, p.y)
-                drawing = true
+                activePath = null
             } else {
-                path.lineTo(p.x, p.y)
+                if (activePath !== target) {
+                    target.moveTo(p.x, p.y)
+                    activePath = target
+                } else {
+                    target.lineTo(p.x, p.y)
+                }
             }
         }
+
         paint.style = Paint.Style.STROKE
-        paint.strokeWidth = .8f * density
         paint.strokeCap = Paint.Cap.ROUND
-        paint.color = Color.argb(26, 65, 205, 255)
-        canvas.drawPath(path, paint)
+        paint.strokeJoin = Paint.Join.ROUND
+        paint.strokeWidth = .85f * density
+        paint.color = Color.argb(15, 65, 205, 255)
+        canvas.drawPath(backPath, paint)
+        paint.strokeWidth = 1.05f * density
+        paint.color = Color.argb(48, 83, 218, 255)
+        paint.setShadowLayer(3f * density, 0f, 0f, Color.argb(28, 0, 177, 255))
+        canvas.drawPath(frontPath, paint)
+        paint.clearShadowLayer()
         paint.style = Paint.Style.FILL
     }
 
-    private fun drawPlasmaGlassIcon(canvas: Canvas, item: OrbitalItem, x: Float, y: Float, size: Float, alpha: Int, depth: Float) {
-        val rect = RectF(x - size / 2f, y - size / 2f, x + size / 2f, y + size / 2f)
-        val radius = size * .25f
-        val outer = RectF(rect).apply { inset(-1.8f * density, -1.8f * density) }
+    private fun drawPlasmaGlassIcon(canvas: Canvas, item: OrbitalItem, x: Float, y: Float, size: Float, alpha: Int, depth: Float, time: Float) {
+        val radius = size * .48f
+        val outerRadius = radius + 3.5f * density
+
+        // A restrained swarm of charged particles makes each app node feel embedded in the 3D system.
+        for (i in 0 until 7) {
+            val a = time * (1.15f + i * .035f) + i * (Math.PI.toFloat() * 2f / 7f)
+            val orbitX = cos(a) * outerRadius
+            val orbitY = sin(a * 1.08f) * outerRadius * .72f
+            val pulse = .55f + .45f * sin(a * 1.7f)
+            paint.color = Color.argb((alpha * (.22f + pulse * .35f)).toInt().coerceIn(0, alpha), 82, 220, 255)
+            paint.setShadowLayer(3f * density, 0f, 0f, Color.argb((alpha * .35f).toInt(), 0, 190, 255))
+            canvas.drawCircle(x + orbitX, y + orbitY, (1.1f + pulse * 1.1f) * density, paint)
+            paint.clearShadowLayer()
+        }
 
         paint.style = Paint.Style.FILL
-        paint.color = Color.argb((alpha * .16f).toInt(), 28, 164, 235)
-        paint.setShadowLayer((5f + depth * 5f) * density, 0f, 0f, Color.argb((alpha * .42f).toInt(), 0, 177, 255))
-        canvas.drawRoundRect(outer, radius, radius, paint)
+        paint.setShadowLayer((7f + depth * 5f) * density, 0f, 0f, Color.argb((alpha * .48f).toInt(), 0, 177, 255))
+        paint.color = Color.argb((alpha * .18f).toInt(), 28, 164, 235)
+        canvas.drawCircle(x, y, outerRadius, paint)
         paint.clearShadowLayer()
 
-        paint.shader = LinearGradient(
-            rect.left, rect.top, rect.right, rect.bottom,
-            intArrayOf(Color.argb(alpha * 3 / 5, 19, 75, 112), Color.argb(alpha * 2 / 5, 5, 22, 43), Color.argb(alpha * 3 / 5, 24, 91, 133)),
-            null, Shader.TileMode.CLAMP
+        val glass = RadialGradient(
+            x - radius * .28f, y - radius * .34f, radius * 1.55f,
+            intArrayOf(
+                Color.argb((alpha * .72f).toInt(), 42, 142, 190),
+                Color.argb((alpha * .58f).toInt(), 8, 43, 70),
+                Color.argb((alpha * .82f).toInt(), 3, 17, 34)
+            ),
+            floatArrayOf(0f, .52f, 1f),
+            Shader.TileMode.CLAMP
         )
-        canvas.drawRoundRect(rect, radius, radius, paint)
+        paint.shader = glass
+        canvas.drawCircle(x, y, radius, paint)
         paint.shader = null
 
         iconPath.reset()
-        iconPath.addRoundRect(rect, radius, radius, Path.Direction.CW)
+        iconPath.addCircle(x, y, radius * .76f, Path.Direction.CW)
         val save = canvas.save()
         canvas.clipPath(iconPath)
-        val iconInset = size * .105f
-        val iconRect = RectF(rect).apply { inset(iconInset, iconInset) }
+        val iconInset = radius * .31f
         val oldAlpha = item.app.icon.alpha
         item.app.icon.alpha = alpha
-        item.app.icon.setBounds(iconRect.left.toInt(), iconRect.top.toInt(), iconRect.right.toInt(), iconRect.bottom.toInt())
+        item.app.icon.setBounds(
+            (x - radius + iconInset).toInt(),
+            (y - radius + iconInset).toInt(),
+            (x + radius - iconInset).toInt(),
+            (y + radius - iconInset).toInt()
+        )
         item.app.icon.draw(canvas)
         item.app.icon.alpha = oldAlpha
-
-        // A restrained glass reflection gives the tile a material, not a flat sticker.
-        paint.shader = LinearGradient(
-            rect.left, rect.top, rect.right, rect.bottom,
-            intArrayOf(Color.argb((alpha * .30f).toInt(), 255, 255, 255), Color.TRANSPARENT, Color.TRANSPARENT),
-            floatArrayOf(0f, .42f, 1f), Shader.TileMode.CLAMP
-        )
-        canvas.drawRoundRect(rect, radius, radius, paint)
-        paint.shader = null
         canvas.restoreToCount(save)
 
         paint.style = Paint.Style.STROKE
-        paint.strokeWidth = 1.15f * density
-        paint.color = Color.argb(alpha, 92, 218, 255)
-        canvas.drawRoundRect(rect, radius, radius, paint)
+        paint.strokeWidth = 1.25f * density
+        paint.color = Color.argb(alpha, 102, 226, 255)
+        canvas.drawCircle(x, y, radius, paint)
         paint.strokeWidth = .65f * density
-        paint.color = Color.argb(alpha / 2, 220, 249, 255)
-        canvas.drawRoundRect(RectF(rect).apply { inset(2f * density, 2f * density) }, radius * .82f, radius * .82f, paint)
+        paint.color = Color.argb((alpha * .58f).toInt(), 224, 250, 255)
+        canvas.drawCircle(x, y, radius * .88f, paint)
+
+        paint.strokeWidth = 1.2f * density
+        paint.color = Color.argb((alpha * .68f).toInt(), 232, 252, 255)
+        val highlight = RectF(x - radius * .68f, y - radius * .68f, x + radius * .68f, y + radius * .68f)
+        canvas.drawArc(highlight, 205f, 72f, false, paint)
         paint.style = Paint.Style.FILL
     }
 
@@ -322,14 +364,17 @@ class AtomWorkspaceView(
         val cy = h * .49f
         val base = min(w, h)
         val coreRadius = base * .185f
-        val elapsed = if (running) SystemClock.uptimeMillis() / 1000f else 0f
+        val now = SystemClock.uptimeMillis()
+        if (running) animationTime += ((now - lastFrameUptime).coerceIn(0L, 50L)) / 1000f
+        lastFrameUptime = now
+        val elapsed = animationTime
         val visibleItems = items.filter { it.page == page }
 
         visibleItems.forEach { drawOrbit(canvas, it, cx, cy, base, coreRadius, elapsed) }
 
         val projected = visibleItems.mapNotNull { item ->
             val angle = item.angle + if (running) elapsed * item.angularSpeed else 0f
-            val point = project(orbitalPoint(item, angle, item.orbit), cx, cy, base)
+            val point = project(orbitalPoint(item, angle, item.orbit, elapsed), cx, cy, base)
             if (isOccludedByCore(point, cx, cy, coreRadius + base * .13f)) {
                 item.rect.setEmpty()
                 null
@@ -344,7 +389,7 @@ class AtomWorkspaceView(
             val iconSize = 38f * density * scale
             val alpha = (178 + depth * 77).toInt().coerceIn(0, 255)
             item.rect.set(point.x - iconSize / 2f, point.y - iconSize / 2f, point.x + iconSize / 2f, point.y + iconSize / 2f)
-            drawPlasmaGlassIcon(canvas, item, point.x, point.y, iconSize, alpha, depth)
+            drawPlasmaGlassIcon(canvas, item, point.x, point.y, iconSize, alpha, depth, elapsed)
             textPaint.alpha = alpha
             canvas.drawText(item.app.label.take(16), point.x, point.y + iconSize * .78f + 12f * density, textPaint)
         }
