@@ -326,7 +326,7 @@ class AtomWorkspaceView(
         val projected = visibleItems.mapNotNull { item ->
             val angle = item.angle + if (running) elapsed * .14f else 0f
             val point = project(orbitalPoint(item, angle, base * item.orbit), cx, cy, base)
-            if (isOccludedByCore(point, cx, cy, coreRadius)) {
+            if (isOccludedByCore(point, cx, cy, coreRadius + base * .13f)) {
                 item.rect.setEmpty()
                 null
             } else {
