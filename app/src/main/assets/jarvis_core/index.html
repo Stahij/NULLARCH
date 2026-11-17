@@ -751,8 +751,8 @@
             float phase = aSwarmOrbit.y + uTime * aSwarmOrbit.z;
             float trailPos = aSwarmOrbit.w;
             float trailLength = 0.46 + vHighlight * 0.08;
-            vec3 tangent = normalize(vec3(-sin(phase), 0.0, cos(phase)));
-            vec3 side = normalize(vec3(cos(phase), 0.0, sin(phase)));
+            vec3 tangent = normalize(vec3(-center.z, 0.0, center.x));
+            vec3 side = normalize(vec3(center.x, 0.0, center.z));
             float flutter = sin(uTime * 3.1 + phase * 2.0) * 0.025;
             vec3 offset = -tangent * (trailPos * trailLength)
                         + side * (sin(phase * 1.7 + trailPos * 4.0) * 0.045 + flutter)
