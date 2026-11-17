@@ -81,6 +81,7 @@
         currentRotY: 0,
         pointerDown: false,
         pointerMoved: false,
+        rotationEnabled: true,
         downX: 0,
         downY: 0,
         lastX: 0,
@@ -912,6 +913,7 @@
         }
         state.lastX = e.clientX;
         state.lastY = e.clientY;
+        if (!state.rotationEnabled) return;
         const now = performance.now();
         const dt = Math.max(8, now - state.lastPointerTime);
         state.lastPointerTime = now;
@@ -1086,6 +1088,7 @@
       // -----------------------------------------------------------------------
       window.JarvisCoreAPI = {
         setTheme(theme) { registerActivity(); },
+        setRotationEnabled(enabled) { state.rotationEnabled = !!enabled; },
         setQuality(quality) {
           const key = String(quality || '').toLowerCase();
           registerActivity();
