@@ -1047,7 +1047,8 @@
         state.currentRotY += (state.targetRotY - state.currentRotY) * Math.min(1.0, dtSec * 8.0);
 
         coreRoot.rotation.set(state.currentRotX, state.currentRotY, 0);
-        coreRoot.scale.setScalar(state.currentScale);\n        coreBody.scale.setScalar(state.currentScale * 0.76);
+        coreRoot.scale.setScalar(state.currentScale);
+        coreBody.scale.setScalar(state.currentScale * 0.76);
 
         updateOrbitalNodes(dtSec * state.currentSpeed);
         renderer.render(scene, camera);
