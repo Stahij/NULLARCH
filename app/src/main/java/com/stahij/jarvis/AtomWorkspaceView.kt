@@ -181,7 +181,8 @@ class AtomWorkspaceView(
         val elapsed = if (running) SystemClock.uptimeMillis() / 1000f else 0f
 
         items.filter { it.page == page }.forEachIndexed { index, item ->
-            val angle = item.angle + if (running) elapsed * (.11f + (index % 4) * .012f) else 0f
+            // Match PlasmaCore.group.rotation.y (0.14 rad/s) for a unified orbital motion.
+            val angle = item.angle + if (running) elapsed * .14f else 0f
             val radius = base * item.orbit
             val x = cx + cos(angle.toDouble()).toFloat() * radius
             val y = cy + sin(angle.toDouble()).toFloat() * radius * .57f
