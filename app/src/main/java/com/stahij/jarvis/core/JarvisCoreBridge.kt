@@ -13,7 +13,7 @@ import kotlin.math.PI
 
 class JarvisCoreBridge(
     private val webView: WebView,
-    private val onNodeClick: (String) -> Unit
+    private val nodeClickHandler: (String) -> Unit
 ) {
     private val pending = ArrayDeque<String>()
     private var ready = false
@@ -30,7 +30,7 @@ class JarvisCoreBridge(
     @JavascriptInterface
     fun onNodeClick(id: String) {
         webView.post {
-            if (!disposed) onNodeClick.invoke(id)
+            if (!disposed) nodeClickHandler.invoke(id)
         }
     }
 
