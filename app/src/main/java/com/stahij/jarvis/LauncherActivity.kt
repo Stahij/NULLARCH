@@ -87,6 +87,9 @@ class LauncherActivity : Activity() {
             onAppsChanged = { apps -> coreView.bridge.setNodes(apps) }
         )
         coreView.bridge.setNodes(workspace.getCoreApps())
+        coreView.bridge.setRotationEnabled(
+            getSharedPreferences("jarvis_launcher_gestures", MODE_PRIVATE).getBoolean("core_rotate", true)
+        )
         val root = FrameLayout(this).apply {
             setBackgroundColor(Color.rgb(3, 8, 20))
             addView(coreView, FrameLayout.LayoutParams(-1, -1))
@@ -138,9 +141,12 @@ class LauncherActivity : Activity() {
         AlertDialog.Builder(this)
             .setTitle("Жесты рабочего стола")
             .setMultiChoiceItems(labels, checked) { _, which, enabled ->
-                prefs.edit().putBoolean(keys[which], enabled).apply()
+                checked[which] = enabled
             }
             .setPositiveButton("Сохранить") { _, _ ->
+                prefs.edit().apply {
+                    keys.forEachIndexed { index, key -> putBoolean(key, checked[index]) }
+                }.apply()
                 workspace.reloadGestureSettings()
                 coreView.bridge.setRotationEnabled(prefs.getBoolean("core_rotate", true))
                 Toast.makeText(this, "Жесты обновлены", Toast.LENGTH_SHORT).show()
