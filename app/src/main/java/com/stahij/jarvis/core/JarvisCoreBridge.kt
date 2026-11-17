@@ -36,6 +36,7 @@ class JarvisCoreBridge(
 
     fun setTheme(theme: CoreTheme) = evaluate("JarvisCoreAPI.setTheme('${theme.value}')")
     fun setQuality(quality: CoreQuality) = evaluate("JarvisCoreAPI.setQuality('${quality.value}')")
+    fun setRotationEnabled(enabled: Boolean) = evaluate("JarvisCoreAPI.setRotationEnabled($enabled)")
     fun setAssistantState(state: AssistantState) = evaluate("JarvisCoreAPI.setState('${state.value}')")
 
     fun setNodes(apps: List<LauncherApp>) {
