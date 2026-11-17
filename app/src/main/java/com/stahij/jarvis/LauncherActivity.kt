@@ -193,7 +193,6 @@ class LauncherActivity : Activity() {
                     isFocusable = true
                     setOnClickListener {
                         val added = workspace.addApp(app)
-                        if (added) coreView.bridge.setNodes(workspace.getCoreApps())
                         Toast.makeText(
                             this@LauncherActivity,
                             if (added) "${app.label} добавлено на рабочий стол" else "Приложение уже добавлено",
