@@ -738,6 +738,7 @@
           uSwarmRatio: sharedUniforms.uSwarmRatio,
           uIntensity: sharedUniforms.uIntensity,
           uHueShift: sharedUniforms.uHueShift,
+          uPaletteColor: sharedUniforms.uPaletteColor,
           uNodeCenters: { value: nodeCentersUniform },
           uActiveNodeCount: { value: appNodes.length }
         },
@@ -1128,8 +1129,8 @@
           state.devOrbitScale = Math.max(0.7, Math.min(1.45, Number(orbit) || 1));
           state.devOrbitSpeed = Math.max(0, Math.min(2.5, Number(speed) || 0));
           state.devIntensity = Math.max(0.4, Math.min(1.8, Number(intensity) || 1));
-          state.devHue = ((Number(hue) || 190) % 360 + 360) % 360;
-          state.devPulse = Math.max(0, Math.min(2, Number(pulse) || 1));
+          state.devHue = (((Number.isFinite(Number(hue)) ? Number(hue) : 190) % 360) + 360) % 360;
+          state.devPulse = Math.max(0, Math.min(2, Number.isFinite(Number(pulse)) ? Number(pulse) : 1));
           sharedUniforms.uDevGlow.value = Math.max(0, Math.min(2, Number(glow) || 0));
           sharedUniforms.uDevParticles.value = Math.max(0, Math.min(1.5, Number(particles) || 0));
           sharedUniforms.uPaletteColor.value.setHSL(state.devHue / 360, 0.92, 0.56);
