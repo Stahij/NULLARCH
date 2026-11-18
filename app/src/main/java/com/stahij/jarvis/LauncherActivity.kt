@@ -119,7 +119,9 @@ class LauncherActivity : Activity() {
         coreView.bridge.setDeveloperSettings(
             p.getInt("core_scale", 100) / 100f, p.getInt("icon_scale", 100) / 100f,
             p.getInt("orbit_scale", 100) / 100f, p.getInt("orbit_speed", 100) / 100f,
-            p.getInt("intensity", 100) / 100f, p.getInt("hue", 0).toFloat()
+            p.getInt("intensity", 100) / 100f, p.getInt("palette_hue", 190).toFloat(),
+            p.getInt("glow", 100) / 100f, p.getInt("pulse", 100) / 100f,
+            p.getInt("particles", 100) / 100f
         )
     }
 
