@@ -89,7 +89,13 @@
         surgeValue: 0,
         nextSurgeAt: 2.5,
         activeNodeIndex: -1,
-        activeNodePulse: 0
+        activeNodePulse: 0,
+        devCoreScale: 1.0,
+        devIconScale: 1.0,
+        devOrbitScale: 1.0,
+        devOrbitSpeed: 1.0,
+        devIntensity: 1.0,
+        devHue: 0
       };
 
       // -----------------------------------------------------------------------
@@ -642,7 +648,8 @@
         blending: THREE.AdditiveBlending,
         uniforms: {
           uAtlas: { value: iconAtlasTex },
-          uIntensity: sharedUniforms.uIntensity
+          uIntensity: sharedUniforms.uIntensity,
+          uIconScale: { value: 1.0 }
         },
         vertexShader: `
           attribute float aGlyphIndex;
@@ -661,7 +668,7 @@
             vec4 worldCenter = modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
             vec4 mvCenter = viewMatrix * worldCenter;
             float scale = 1.0 + aHighlight * 0.28;
-            mvCenter.xy += position.xy * scale;
+            mvCenter.xy += position.xy * scale * uIconScale;
 
             // Плавное атмосферное затухание, когда узел уходит за центральное ядро
             vDepthFade = smoothstep(-2.4, 1.4, worldCenter.z);
@@ -672,6 +679,7 @@
           precision mediump float;
           uniform sampler2D uAtlas;
           uniform float uIntensity;
+          uniform float uIconScale;
           varying vec2 vUv;
           varying float vHighlight;
           varying float vDepthFade;
@@ -822,9 +830,10 @@
 
         for (let i = 0; i < count; i++) {
           const node = appNodes[i];
-          node.angle += dt * node.speed * (state.isIdlePowerSave ? 0.5 : 1.0);
+          node.angle += dt * node.speed * state.devOrbitSpeed * (state.isIdlePowerSave ? 0.5 : 1.0);
 
-          _pos.set(Math.cos(node.angle) * node.radius, 0, Math.sin(node.angle) * node.radius);
+          const orbitRadius = node.radius * state.devOrbitScale;
+          _pos.set(Math.cos(node.angle) * orbitRadius, 0, Math.sin(node.angle) * orbitRadius);
           _euler.set(node.tiltX, 0, node.tiltZ);
           _pos.applyEuler(_euler);
 
@@ -1028,7 +1037,7 @@
         }
 
         sharedUniforms.uTime.value = t;
-        sharedUniforms.uIntensity.value = state.currentIntensity;
+        sharedUniforms.uIntensity.value = state.currentIntensity * state.devIntensity;
         sharedUniforms.uPulseAmp.value = state.currentPulseAmp;
         sharedUniforms.uHueShift.value = state.currentHueShift;
         sharedUniforms.uSurge.value = Math.sin(state.surgeValue * Math.PI);
@@ -1047,7 +1056,7 @@
         state.currentRotY += (state.targetRotY - state.currentRotY) * Math.min(1.0, dtSec * 8.0);
 
         coreRoot.rotation.set(state.currentRotX, state.currentRotY, 0);
-        coreRoot.scale.setScalar(state.currentScale);
+        coreRoot.scale.setScalar(state.currentScale * state.devCoreScale);
         coreBody.scale.setScalar(state.currentScale * 0.76);
 
         updateOrbitalNodes(dtSec * state.currentSpeed);
@@ -1103,6 +1112,17 @@
             state.mode = key;
             applyQualityTier(key);
           }
+        },
+        setDevSettings(core, icon, orbit, speed, intensity, hue) {
+          state.devCoreScale = Math.max(0.7, Math.min(1.4, Number(core) || 1));
+          state.devIconScale = Math.max(0.6, Math.min(1.9, Number(icon) || 1));
+          state.devOrbitScale = Math.max(0.7, Math.min(1.45, Number(orbit) || 1));
+          state.devOrbitSpeed = Math.max(0, Math.min(2.5, Number(speed) || 0));
+          state.devIntensity = Math.max(0.4, Math.min(1.8, Number(intensity) || 1));
+          state.devHue = ((Number(hue) || 0) % 360 + 360) % 360;
+          glyphMat.uniforms.uIconScale.value = state.devIconScale;
+          renderer.domElement.style.filter = 'hue-rotate(' + state.devHue + 'deg)';
+          registerActivity();
         },
         setState(stateName) {
           const key = String(stateName || '').toLowerCase();
