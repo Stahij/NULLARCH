@@ -742,7 +742,7 @@
             vec4 tex = texture2D(uAtlas, vUv);
             if (tex.a < 0.02) discard;
             float alpha = tex.a * (0.45 + 0.55 * vDepthFade) * (1.0 + vHighlight * 0.4);
-            vec3 col = mix(tex.rgb, uPaletteColor, 0.10) * uIntensity * (1.0 + vHighlight * 0.6);
+            vec3 col = mix(tex.rgb, uPaletteColor, 0.025) * uIntensity * (1.0 + vHighlight * 0.22);
             gl_FragColor = vec4(col, clamp(alpha, 0.0, 1.0));
           }
         `
@@ -1228,44 +1228,24 @@
               ctx.save();
               ctx.clearRect(x, y, cell, cell);
 
-              // Soft plasma halo stays outside the glass module.
-              const glow = ctx.createRadialGradient(x + 64, y + 54, 22, x + 64, y + 54, 64);
-              glow.addColorStop(0, 'rgba(27,190,255,0.24)');
-              glow.addColorStop(0.62, 'rgba(0,145,220,0.10)');
-              glow.addColorStop(1, 'rgba(0,80,180,0)');
-              ctx.fillStyle = glow;
-              ctx.fillRect(x, y, cell, cell);
-
-              // Dark translucent glass disc with a restrained cyan rim.
-              const plate = ctx.createRadialGradient(x + 49, y + 36, 5, x + 64, y + 55, 53);
-              plate.addColorStop(0, 'rgba(45,105,137,0.88)');
-              plate.addColorStop(0.58, 'rgba(9,35,57,0.94)');
-              plate.addColorStop(1, 'rgba(3,15,29,0.98)');
-              ctx.fillStyle = plate;
-              ctx.beginPath();
-              ctx.arc(x + 64, y + 52, 47, 0, Math.PI * 2);
-              ctx.fill();
-
-              ctx.strokeStyle = 'rgba(95,220,255,0.78)';
-              ctx.lineWidth = 2;
-              ctx.beginPath();
-              ctx.arc(x + 64, y + 52, 46, 0, Math.PI * 2);
-              ctx.stroke();
-
-              // Preserve the app's native icon artwork and transparency.
+              // Free-floating native app artwork: no circular HUD button or heavy rim.
+              // A restrained soft shadow gives the icon depth without tinting its colors.
               ctx.save();
-              ctx.beginPath();
-              ctx.arc(x + 64, y + 52, 39, 0, Math.PI * 2);
-              ctx.clip();
-              ctx.drawImage(image, x + 25, y + 13, 78, 78);
+              ctx.shadowColor = 'rgba(12, 17, 34, 0.72)';
+              ctx.shadowBlur = 13;
+              ctx.shadowOffsetY = 5;
+              ctx.drawImage(image, x + 20, y + 5, 88, 88);
               ctx.restore();
 
-              // Small glass highlight, kept away from the app logo.
-              ctx.strokeStyle = 'rgba(226,250,255,0.58)';
-              ctx.lineWidth = 1.5;
-              ctx.beginPath();
-              ctx.arc(x + 64, y + 52, 42, Math.PI * 1.12, Math.PI * 1.72);
-              ctx.stroke();
+              // Very subtle reflected light from the central plasma core.
+              const reflection = ctx.createRadialGradient(x + 82, y + 18, 1, x + 82, y + 18, 48);
+              reflection.addColorStop(0, 'rgba(255, 105, 112, 0.16)');
+              reflection.addColorStop(0.45, 'rgba(255, 74, 94, 0.055)');
+              reflection.addColorStop(1, 'rgba(255, 74, 94, 0)');
+              ctx.save();
+              ctx.globalCompositeOperation = 'screen';
+              ctx.fillStyle = reflection;
+              ctx.fillRect(x + 12, y, 104, 98);
               ctx.restore();
 
               ctx.save();
