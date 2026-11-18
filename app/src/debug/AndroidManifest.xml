@@ -1,16 +1,3 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <application>
-        <activity
-            android:name=".FilamentSpikeActivity"
-            android:exported="true"
-            android:label="Jarvis 3D Test"
-            android:theme="@android:style/Theme.Material.NoActionBar">
-        </activity>
-        <activity
-            android:name=".OrbitLabActivity"
-            android:exported="true"
-            android:label="Jarvis Orbital Lab"
-            android:theme="@android:style/Theme.Material.NoActionBar">
-        </activity>
-    </application>
+    <application />
 </manifest>
