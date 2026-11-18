@@ -654,7 +654,8 @@
         uniforms: {
           uAtlas: { value: iconAtlasTex },
           uIntensity: sharedUniforms.uIntensity,
-          uIconScale: { value: 1.0 }
+          uIconScale: { value: 1.0 },
+          uPaletteColor: sharedUniforms.uPaletteColor
         },
         vertexShader: `
           attribute float aGlyphIndex;
@@ -685,6 +686,7 @@
           precision mediump float;
           uniform sampler2D uAtlas;
           uniform float uIntensity;
+          uniform vec3 uPaletteColor;
           varying vec2 vUv;
           varying float vHighlight;
           varying float vDepthFade;
@@ -692,7 +694,7 @@
             vec4 tex = texture2D(uAtlas, vUv);
             if (tex.a < 0.02) discard;
             float alpha = tex.a * (0.45 + 0.55 * vDepthFade) * (1.0 + vHighlight * 0.4);
-            vec3 col = tex.rgb * uIntensity * (1.0 + vHighlight * 0.6);
+            vec3 col = mix(tex.rgb, uPaletteColor, 0.10) * uIntensity * (1.0 + vHighlight * 0.6);
             gl_FragColor = vec4(col, clamp(alpha, 0.0, 1.0));
           }
         `
