@@ -159,77 +159,8 @@
         }
       `;
 
-      // -----------------------------------------------------------------------
-      // 3. DRAW CALL 1: ВНУТРЕННЕЕ ПЛАЗМЕННОЕ ЯДРО
-      // -----------------------------------------------------------------------
-      const innerCoreGeo = new THREE.IcosahedronGeometry(0.95, 3);
-      const innerCoreMat = new THREE.ShaderMaterial({
-        uniforms: sharedUniforms,
-        vertexShader: `
-          uniform float uTime;
-          uniform float uPulseAmp;
-          uniform float uSurge;
-          varying vec3 vNormalW;
-          varying vec3 vPosLocal;
-          varying vec3 vWorldPos;
-          void main() {
-            vPosLocal = position;
-            float w1 = sin(position.x * 3.2 + uTime * 1.6) * cos(position.y * 3.1 - uTime * 1.3);
-            float w2 = sin(position.z * 4.1 + uTime * 2.1 + position.x * 2.0);
-            float disp = (w1 * 0.65 + w2 * 0.35) * (uPulseAmp + uSurge * 0.025);
-            vec4 worldPos = modelMatrix * vec4(position + normal * disp, 1.0);
-            vWorldPos = worldPos.xyz;
-            vNormalW = normalize(mat3(modelMatrix) * normal);
-            gl_Position = projectionMatrix * viewMatrix * worldPos;
-          }
-        `,
-        fragmentShader: `
-          precision highp float;
-          uniform float uTime;
-          uniform float uDetail;
-          uniform float uIntensity;
-          uniform float uHueShift;
-          uniform vec3 uPaletteColor;
-          uniform float uSurge;
-          uniform vec3 uSurgeDir;
-          varying vec3 vNormalW;
-          varying vec3 vPosLocal;
-          varying vec3 vWorldPos;
-          ${PLASMA_GLSL}
-          void main() {
-            vec3 N = normalize(vNormalW);
-            vec3 V = normalize(cameraPosition - vWorldPos);
-            float NdotV = max(dot(N, V), 0.0);
-            float fresnel = pow(1.0 - NdotV, 2.3);
-
-            vec3 viewLocal = normalize(vPosLocal - cameraPosition * 0.25);
-            vec3 deepCoord = vPosLocal * 1.15 - viewLocal * 0.32;
-
-            float outerStream = plasmaField(vPosLocal, uTime, uDetail);
-            float innerStream = plasmaField(deepCoord, uTime * 0.72 + 1.7, max(1.0, uDetail - 0.6));
-            float filament = pow(clamp(1.0 - abs(outerStream * 0.68 + innerStream * 0.32), 0.0, 1.0), 3.0);
-            float coreHeat = smoothstep(-0.35, 0.85, innerStream * 0.6 + outerStream * 0.4);
-
-            vec3 deepCobalt   = uPaletteColor * 0.24;
-            vec3 royalBlue    = uPaletteColor * 0.72;
-            vec3 electricCyan = uPaletteColor;
-            vec3 whitePlasma  = vec3(0.86, 0.97, 1.0);
-
-            vec3 col = mix(deepCobalt, royalBlue, coreHeat);
-            col = mix(col, electricCyan, smoothstep(0.22, 0.78, filament));
-            col = mix(col, whitePlasma, smoothstep(0.76, 0.98, filament) * 0.92);
-
-            float surgeMask = (1.0 - smoothstep(0.0, 0.55, distance(normalize(vPosLocal), uSurgeDir))) * uSurge;
-            col += whitePlasma * surgeMask * (0.55 + filament * 1.15);
-            col += electricCyan * fresnel * 0.72;
-            col += whitePlasma * pow(fresnel, 4.2) * 0.45;
-            col *= uIntensity;
-
-            gl_FragColor = vec4(col, 1.0);
-          }
-        `
-      });
-      coreBody.add(new THREE.Mesh(innerCoreGeo, innerCoreMat));
+      // The unified SDF metaball below is the only solid core surface.
+      // The former innerCore sphere overlapped it and produced a second, inflated shell.
 
       // -----------------------------------------------------------------------
       // 4. DRAW CALL 2: ВНЕШНЯЯ ЭНЕРГЕТИЧЕСКАЯ КОРОНА ЯДРА
@@ -253,7 +184,7 @@
             float breathe = 1.0 + sin(uTime * 1.45 + position.y * 2.2) * (uPulseAmp * uDevPulse * 2.8);
             vec4 worldPos = modelMatrix * vec4(position * breathe * (1.0 + uDevGlow * 0.16), 1.0);
             vWorldPos = worldPos.xyz;
-            vNormalW = normalize(mat3(modelMatrix) * normal);
+            vNormalW = normalize(normalMatrix * normal);
             gl_Position = projectionMatrix * viewMatrix * worldPos;
           }
         `,
@@ -1251,7 +1182,7 @@
         sharedUniforms.uParticleRatio.value = Math.min(1.0, QUALITY_PROFILES[state.activeTier].particleRatio * sharedUniforms.uDevParticles.value);
         sharedUniforms.uPulseAmp.value = state.currentPulseAmp;
         sharedUniforms.uHueShift.value = state.currentHueShift;
-        sharedUniforms.uSurge.value = Math.sin(state.surgeValue * Math.PI);
+        sharedUniforms.uSurge.value = Math.min(0.7, Math.sin(state.surgeValue * Math.PI));
 
         if (!state.pointerDown) {
           state.targetRotY += dtSec * 0.10 * tempoFactor + state.inertiaY;
@@ -1440,7 +1371,6 @@
         },
         dispose() {
           stopLoop();
-          innerCoreGeo.dispose(); innerCoreMat.dispose();
           outerShellGeo.dispose(); outerShellMat.dispose();
           ribbonsGeo.dispose(); ribbonsMat.dispose();
           bgParticleGeo.dispose(); bgParticleMat.dispose();
