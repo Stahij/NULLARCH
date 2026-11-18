@@ -683,7 +683,7 @@
 
       // DRAW CALL 5A: LIQUID PLASMA DROPLETS — one compact plasma body per app node.
       // Native app artwork remains a crisp billboard layered in front of each droplet.
-      const plasmaDropGeo = new THREE.SphereGeometry(0.245, 16, 12);
+      const plasmaDropGeo = new THREE.SphereGeometry(0.30, 24, 18);
       const plasmaDropMat = new THREE.ShaderMaterial({
         uniforms: {
           uTime: sharedUniforms.uTime,
@@ -702,7 +702,7 @@
             float ripple = sin(position.x * 8.0 + uTime * 1.4)
                          * cos(position.y * 9.0 - uTime * 1.2)
                          * sin(position.z * 7.0 + uTime * 0.9);
-            p += normal * ripple * 0.022;
+            p += normal * ripple * 0.034;
             vec4 mv = modelViewMatrix * instanceMatrix * vec4(p, 1.0);
             vNormalView = normalize(mat3(modelViewMatrix * instanceMatrix) * normal);
             vViewPos = -mv.xyz;
@@ -741,12 +741,12 @@
       // DRAW CALL 5B: ORGANIC PLASMA BRIDGES — slim animated liquid filaments.
       // Their depth is real: the central core naturally occludes bridges on the far side.
       // High-segment tapered connector; shader flares both ends into the core and droplet.
-      const plasmaBridgeGeo = new THREE.CylinderGeometry(0.026, 0.026, 1.0, 16, 28, true);
+      const plasmaBridgeGeo = new THREE.CylinderGeometry(0.046, 0.046, 1.0, 24, 40, true);
       const plasmaBridgeMat = new THREE.ShaderMaterial({
-        transparent: true,
+        transparent: false,
         depthTest: true,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending,
+        depthWrite: true,
+        blending: THREE.NormalBlending,
         uniforms: {
           uTime: sharedUniforms.uTime,
           uPaletteColor: sharedUniforms.uPaletteColor,
@@ -761,14 +761,14 @@
           void main() {
             vUv = uv;
             vec3 p = position;
-            float endWeight = 1.0 - smoothstep(0.0, 0.24, min(uv.y, 1.0 - uv.y));
+            float endWeight = 1.0 - smoothstep(0.0, 0.30, min(uv.y, 1.0 - uv.y));
             float liquidPulse = 0.5 + 0.5 * sin(uTime * 2.1 + uv.y * 8.0);
-            float flare = 1.0 + endWeight * 2.15;
-            p.xz *= flare * (1.0 + 0.10 * sin(uTime * 2.8 + uv.y * 13.0));
-            float sway = sin(uv.y * 3.14159 + uTime * 1.4) * 0.035
-                       + sin(uv.y * 9.0 - uTime * 1.8) * 0.012;
+            float flare = 1.0 + endWeight * 3.8;
+            p.xz *= flare * (1.0 + 0.08 * sin(uTime * 2.2 + uv.y * 10.0));
+            float sway = sin(uv.y * 3.14159 + uTime * 1.4) * 0.045
+                       + sin(uv.y * 8.0 - uTime * 1.65) * 0.016;
             p.x += sway;
-            p.z += cos(uv.y * 6.28318 - uTime * 1.1) * 0.012;
+            p.z += cos(uv.y * 6.28318 - uTime * 1.1) * 0.018;
             vec4 mv = modelViewMatrix * instanceMatrix * vec4(p, 1.0);
             vNormalView = normalize(mat3(modelViewMatrix * instanceMatrix) * normal);
             vViewPos = -mv.xyz;
@@ -795,8 +795,8 @@
             vec3 hot = mix(uPaletteColor * 1.12, vec3(1.0, 0.91, 0.94), filament * 0.62 + fresnel * 0.25);
             vec3 col = mix(deep, hot, 0.35 + filament * 0.65);
             col += uPaletteColor * endGlow * 0.45;
-            float alpha = (0.13 + filament * 0.39 + fresnel * 0.20 + endGlow * 0.16) * pulse * uIntensity;
-            gl_FragColor = vec4(col, clamp(alpha, 0.0, 0.84));
+            col *= pulse * uIntensity;
+            gl_FragColor = vec4(col, 1.0);
           }
         `
       });
@@ -806,7 +806,7 @@
       coreRoot.add(plasmaBridgeMesh);
 
       // DRAW CALL 5: Плоскости глифов в центре каждого узла (InstancedMesh)
-      const glyphPlaneGeo = new THREE.PlaneGeometry(0.36, 0.36);
+      const glyphPlaneGeo = new THREE.PlaneGeometry(0.22, 0.22);
       const glyphInstancedGeo = new THREE.InstancedBufferGeometry().copy(glyphPlaneGeo);
       const glyphIndexAttr = new Float32Array(MAX_NODES);
       const glyphHighlightAttr = new Float32Array(MAX_NODES);
@@ -847,7 +847,7 @@
             vec4 worldCenter = modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
             vec4 mvCenter = viewMatrix * worldCenter;
             // Lift the flat native logo just in front of its 3D plasma droplet.
-            mvCenter.z += 0.255;
+            mvCenter.z += 0.292;
             float scale = 1.0 + aHighlight * 0.28;
             mvCenter.xy += position.xy * scale * uIconScale;
 
@@ -1046,8 +1046,8 @@
           // Connect the core surface to the near edge of each droplet.
           // Bridges behind the core are naturally hidden by the scene depth buffer.
           _bridgeDir.copy(_pos).normalize();
-          _bridgeStart.copy(_bridgeDir).multiplyScalar(0.65);
-          _bridgeEnd.copy(_pos).addScaledVector(_bridgeDir, -0.28);
+          _bridgeStart.copy(_bridgeDir).multiplyScalar(0.62);
+          _bridgeEnd.copy(_pos).addScaledVector(_bridgeDir, -0.31);
           const bridgeLength = _bridgeStart.distanceTo(_bridgeEnd);
           if (bridgeLength > 0.025) {
             _bridgeAxis.copy(_bridgeEnd).sub(_bridgeStart).normalize();
@@ -1392,18 +1392,18 @@
               // Circular alpha mask removes launcher-icon tile corners while preserving artwork colors.
               ctx.save();
               ctx.beginPath();
-              ctx.arc(x + 64, y + 47, 36, 0, Math.PI * 2);
+              ctx.arc(x + 64, y + 47, 27, 0, Math.PI * 2);
               ctx.clip();
               ctx.shadowColor = 'rgba(8, 12, 28, 0.62)';
               ctx.shadowBlur = 10;
               ctx.shadowOffsetY = 2;
-              ctx.drawImage(image, x + 28, y + 11, 72, 72);
+              ctx.drawImage(image, x + 37, y + 20, 54, 54);
               ctx.restore();
 
               // A fine liquid-glass edge blends the icon into its plasma shell.
               ctx.save();
               ctx.beginPath();
-              ctx.arc(x + 64, y + 47, 36.5, 0, Math.PI * 2);
+              ctx.arc(x + 64, y + 47, 27.5, 0, Math.PI * 2);
               ctx.strokeStyle = 'rgba(220, 250, 255, 0.22)';
               ctx.lineWidth = 1.4;
               ctx.shadowColor = 'rgba(70, 205, 255, 0.34)';
