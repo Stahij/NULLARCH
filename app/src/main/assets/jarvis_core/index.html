@@ -692,6 +692,7 @@
         },
         vertexShader: `
           uniform float uTime;
+          attribute mat4 instanceMatrix;
           varying vec3 vLocal;
           varying vec3 vNormalView;
           varying vec3 vViewPos;
@@ -702,8 +703,8 @@
                          * cos(position.y * 9.0 - uTime * 1.2)
                          * sin(position.z * 7.0 + uTime * 0.9);
             p += normal * ripple * 0.012;
-            vec4 mv = modelViewMatrix * vec4(p, 1.0);
-            vNormalView = normalize(normalMatrix * normal);
+            vec4 mv = modelViewMatrix * instanceMatrix * vec4(p, 1.0);
+            vNormalView = normalize(mat3(modelViewMatrix * instanceMatrix) * normal);
             vViewPos = -mv.xyz;
             gl_Position = projectionMatrix * mv;
           }
@@ -751,13 +752,14 @@
           uIntensity: sharedUniforms.uIntensity
         },
         vertexShader: `
+          attribute mat4 instanceMatrix;
           varying vec2 vUv;
           varying vec3 vNormalView;
           varying vec3 vViewPos;
           void main() {
             vUv = uv;
-            vec4 mv = modelViewMatrix * vec4(position, 1.0);
-            vNormalView = normalize(normalMatrix * normal);
+            vec4 mv = modelViewMatrix * instanceMatrix * vec4(position, 1.0);
+            vNormalView = normalize(mat3(modelViewMatrix * instanceMatrix) * normal);
             vViewPos = -mv.xyz;
             gl_Position = projectionMatrix * mv;
           }
@@ -987,6 +989,11 @@
       const _pos = new THREE.Vector3();
       const _worldPos = new THREE.Vector3();
       const _projVec = new THREE.Vector3();
+      const _bridgeDir = new THREE.Vector3();
+      const _bridgeStart = new THREE.Vector3();
+      const _bridgeEnd = new THREE.Vector3();
+      const _bridgeAxis = new THREE.Vector3();
+      const _bridgeUp = new THREE.Vector3(0, 1, 0);
 
       function updateOrbitalNodes(dt) {
         const count = Math.min(appNodes.length, MAX_NODES);
@@ -1023,14 +1030,14 @@
 
           // Connect the core surface to the near edge of each droplet.
           // Bridges behind the core are naturally hidden by the scene depth buffer.
-          const bridgeDir = _pos.clone().normalize();
-          const bridgeStart = bridgeDir.clone().multiplyScalar(0.70);
-          const bridgeEnd = _pos.clone().addScaledVector(bridgeDir, -0.235);
-          const bridgeLength = bridgeStart.distanceTo(bridgeEnd);
+          _bridgeDir.copy(_pos).normalize();
+          _bridgeStart.copy(_bridgeDir).multiplyScalar(0.70);
+          _bridgeEnd.copy(_pos).addScaledVector(_bridgeDir, -0.235);
+          const bridgeLength = _bridgeStart.distanceTo(_bridgeEnd);
           if (bridgeLength > 0.025) {
-            const bridgeAxis = bridgeEnd.clone().sub(bridgeStart).normalize();
-            _dummy.position.copy(bridgeStart).add(bridgeEnd).multiplyScalar(0.5);
-            _dummy.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), bridgeAxis);
+            _bridgeAxis.copy(_bridgeEnd).sub(_bridgeStart).normalize();
+            _dummy.position.copy(_bridgeStart).add(_bridgeEnd).multiplyScalar(0.5);
+            _dummy.quaternion.setFromUnitVectors(_bridgeUp, _bridgeAxis);
             _dummy.scale.set(1.0, bridgeLength, 1.0);
           } else {
             _dummy.position.copy(_pos);
