@@ -681,165 +681,129 @@
       const MAX_NODES = 16;
       const PARTICLES_PER_NODE = 14;
 
-      // DRAW CALL 5A: LIQUID PLASMA DROPLETS — one compact plasma body per app node.
-      // Native app artwork remains a crisp billboard layered in front of each droplet.
-      const plasmaDropGeo = new THREE.SphereGeometry(0.30, 24, 18);
-      const plasmaDropMat = new THREE.ShaderMaterial({
+      // DRAW CALL 5A: UNIFIED 3D SDF METABALL SURFACE.
+      // One continuous radial surface is solved around the core and every app node.
+      // This replaces separate droplet spheres and proxy bridge cylinders.
+      const metaballNodeData = new Float32Array(MAX_NODES * 4);
+      const metaballGeo = new THREE.SphereGeometry(2.75, 64, 48);
+      const metaballMat = new THREE.ShaderMaterial({
         uniforms: {
           uTime: sharedUniforms.uTime,
+          uDetail: sharedUniforms.uDetail,
+          uIntensity: sharedUniforms.uIntensity,
           uPaletteColor: sharedUniforms.uPaletteColor,
-          uIntensity: sharedUniforms.uIntensity
+          uNodeData: { value: metaballNodeData },
+          uNodeCount: { value: 0 },
+          uCoreRadius: { value: 0.68 },
+          uIconRadius: { value: 0.30 }
         },
         vertexShader: `
           uniform float uTime;
-          attribute mat4 instanceMatrix;
-          varying vec3 vLocal;
+          uniform float uNodeCount;
+          uniform float uCoreRadius;
+          uniform float uIconRadius;
+          uniform vec4 uNodeData[16];
+          varying vec3 vSurfacePos;
           varying vec3 vNormalView;
           varying vec3 vViewPos;
-          void main() {
-            vLocal = position;
-            vec3 p = position;
-            float ripple = sin(position.x * 8.0 + uTime * 1.4)
-                         * cos(position.y * 9.0 - uTime * 1.2)
-                         * sin(position.z * 7.0 + uTime * 0.9);
-            p += normal * ripple * 0.034;
-            vec4 mv = modelViewMatrix * instanceMatrix * vec4(p, 1.0);
-            vNormalView = normalize(mat3(modelViewMatrix * instanceMatrix) * normal);
-            vViewPos = -mv.xyz;
-            gl_Position = projectionMatrix * mv;
-          }
-        `,
-        fragmentShader: `
-          precision mediump float;
-          uniform float uTime;
-          uniform float uIntensity;
-          uniform vec3 uPaletteColor;
-          varying vec3 vLocal;
-          varying vec3 vNormalView;
-          varying vec3 vViewPos;
-          void main() {
-            vec3 N = normalize(vNormalView);
-            vec3 V = normalize(vViewPos);
-            float fresnel = pow(1.0 - max(dot(N, V), 0.0), 2.0);
-            float flowA = sin(vLocal.x * 13.0 + uTime * 1.7 + sin(vLocal.y * 11.0 - uTime) * 1.2);
-            float flowB = cos(vLocal.z * 15.0 - uTime * 1.35 + flowA * 0.8);
-            float filament = pow(clamp(1.0 - abs(flowA * 0.58 + flowB * 0.42), 0.0, 1.0), 2.8);
-            vec3 deep = uPaletteColor * 0.20;
-            vec3 body = uPaletteColor * (0.58 + filament * 0.48);
-            vec3 col = mix(deep, body, smoothstep(-0.65, 0.65, vLocal.y));
-            col = mix(col, vec3(0.88, 0.97, 1.0), filament * 0.78 + fresnel * 0.22);
-            col += uPaletteColor * fresnel * 0.55;
-            gl_FragColor = vec4(col * uIntensity, 1.0);
-          }
-        `
-      });
-      const plasmaDropMesh = new THREE.InstancedMesh(plasmaDropGeo, plasmaDropMat, MAX_NODES);
-      plasmaDropMesh.count = appNodes.length;
-      plasmaDropMesh.frustumCulled = false;
-      coreRoot.add(plasmaDropMesh);
-
-      // DRAW CALL 5B: ORGANIC PLASMA BRIDGES — slim animated liquid filaments.
-      // Their depth is real: the central core naturally occludes bridges on the far side.
-      // High-segment tapered connector; shader flares both ends into the core and droplet.
-      // DRAW CALL 5B: SDF METABALL BRIDGES.
-      // The tube is only a proxy mesh: each vertex solves the smooth-union
-      // cross-section of the real core and app droplet spheres.
-      const plasmaBridgeGeo = new THREE.CylinderGeometry(0.046, 0.046, 1.0, 24, 48, true);
-      const plasmaBridgeMat = new THREE.ShaderMaterial({
-        transparent: false,
-        depthTest: true,
-        depthWrite: true,
-        blending: THREE.NormalBlending,
-        uniforms: {
-          uTime: sharedUniforms.uTime,
-          uPaletteColor: sharedUniforms.uPaletteColor,
-          uIntensity: sharedUniforms.uIntensity
-        },
-        vertexShader: `
-          uniform float uTime;
-          attribute mat4 instanceMatrix;
-          varying vec2 vUv;
-          varying vec3 vNormalView;
-          varying vec3 vViewPos;
+          varying float vNodeInfluence;
 
           float smin(float a, float b, float k) {
             float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
             return mix(b, a, h) - k * h * (1.0 - h);
           }
 
-          void main() {
-            vUv = uv;
-            vec3 p = position;
-
-            // Instance Y scale is the live bridge length. Recover the
-            // center-to-center distance without extra per-frame uniforms.
-            float bridgeLength = length(instanceMatrix[1].xyz);
-            float centerDistance = bridgeLength + 0.74;
-            float axial = 0.62 + uv.y * bridgeLength;
-
-            // Solve smin(distance-to-core, distance-to-icon) = 0 for
-            // the radial surface. Seven bisection steps are inexpensive
-            // and give a stable, genuinely merged metaball silhouette.
-            float lo = 0.0;
-            float hi = 1.10;
-            for (int iter = 0; iter < 7; iter++) {
-              float mid = 0.5 * (lo + hi);
-              float dCore = length(vec2(axial, mid)) - 0.95;
-              float dIcon = length(vec2(axial - centerDistance, mid)) - 0.30;
-              float field = smin(dCore, dIcon, 0.82);
-              if (field > 0.0) hi = mid;
-              else lo = mid;
+          float plasmaSdf(vec3 p) {
+            float d = length(p) - uCoreRadius;
+            for (int i = 0; i < 16; i++) {
+              if (float(i) >= uNodeCount) break;
+              vec4 node = uNodeData[i];
+              float dNode = length(p - node.xyz) - uIconRadius;
+              d = smin(d, dNode, node.w);
             }
-            float metaballRadius = max(0.012, 0.5 * (lo + hi));
+            float flow = sin(p.x * 5.2 + uTime * 0.72)
+                       * sin(p.y * 6.1 - uTime * 0.61)
+                       * cos(p.z * 5.4 + uTime * 0.53);
+            return d - flow * 0.012;
+          }
 
-            // Slight traveling surface motion; the SDF silhouette remains
-            // stable while the plasma skin breathes.
-            float wave = 1.0 + 0.025 * sin(uTime * 2.0 + uv.y * 9.0);
-            p.xz *= (metaballRadius / 0.046) * wave;
-            float sway = sin(uv.y * 3.14159 + uTime * 1.15) * 0.012;
-            p.x += sway;
-            p.z += cos(uv.y * 6.28318 - uTime * 0.9) * 0.010;
+          void main() {
+            vec3 rayDir = normalize(position);
+            float lo = 0.0;
+            float hi = 2.75;
 
-            vec4 mv = modelViewMatrix * instanceMatrix * vec4(p, 1.0);
-            vNormalView = normalize(mat3(modelViewMatrix * instanceMatrix) * normal);
+            // Eleven bisection passes find the outer boundary of the unified field.
+            for (int step = 0; step < 11; step++) {
+              float mid = 0.5 * (lo + hi);
+              if (plasmaSdf(rayDir * mid) < 0.0) lo = mid;
+              else hi = mid;
+            }
+
+            vec3 p = rayDir * (0.5 * (lo + hi));
+            float eps = 0.012;
+            vec3 gradient = vec3(
+              plasmaSdf(p + vec3(eps, 0.0, 0.0)) - plasmaSdf(p - vec3(eps, 0.0, 0.0)),
+              plasmaSdf(p + vec3(0.0, eps, 0.0)) - plasmaSdf(p - vec3(0.0, eps, 0.0)),
+              plasmaSdf(p + vec3(0.0, 0.0, eps)) - plasmaSdf(p - vec3(0.0, 0.0, eps))
+            );
+            vec3 normalLocal = normalize(gradient);
+
+            float nearestNode = 10.0;
+            for (int i = 0; i < 16; i++) {
+              if (float(i) >= uNodeCount) break;
+              nearestNode = min(nearestNode, length(p - uNodeData[i].xyz));
+            }
+            vNodeInfluence = 1.0 - smoothstep(uIconRadius * 0.8, uIconRadius * 3.2, nearestNode);
+            vSurfacePos = p;
+            vec4 mv = modelViewMatrix * vec4(p, 1.0);
+            vNormalView = normalize(normalMatrix * normalLocal);
             vViewPos = -mv.xyz;
             gl_Position = projectionMatrix * mv;
           }
         `,
         fragmentShader: `
-          precision mediump float;
+          precision highp float;
           uniform float uTime;
+          uniform float uDetail;
           uniform float uIntensity;
           uniform vec3 uPaletteColor;
-          varying vec2 vUv;
+          varying vec3 vSurfacePos;
           varying vec3 vNormalView;
           varying vec3 vViewPos;
+          varying float vNodeInfluence;
+          ${PLASMA_GLSL}
+
           void main() {
             vec3 N = normalize(vNormalView);
             vec3 V = normalize(vViewPos);
-            float fresnel = pow(1.0 - max(dot(N, V), 0.0), 2.1);
+            vec3 L = normalize(vec3(-0.42, 0.72, 0.58));
+            vec3 H = normalize(L + V);
 
-            float flowA = sin(vUv.y * 16.0 - uTime * 1.7
-                           + sin(vUv.y * 6.0 + uTime * 0.7) * 0.8);
-            float flowB = cos(vUv.y * 25.0 + uTime * 1.1 + vUv.x * 6.28318);
-            float filament = pow(clamp(1.0 - abs(flowA * 0.68 + flowB * 0.22), 0.0, 1.0), 2.8);
+            vec3 q = vSurfacePos * 2.65;
+            float streamA = plasmaField(q, uTime * 0.78, uDetail);
+            float streamB = plasmaField(q * 1.47 + vec3(1.7, -0.8, 0.6), uTime * 0.56 + 2.1, max(1.0, uDetail - 0.4));
+            float filament = pow(clamp(1.0 - abs(streamA * 0.62 + streamB * 0.38), 0.0, 1.0), 2.7);
 
-            vec3 coreTone = uPaletteColor * 0.72;
-            vec3 iconTone = vec3(0.0, 0.72, 1.0);
-            vec3 plasma = mix(coreTone, iconTone, smoothstep(0.05, 0.98, vUv.y) * 0.62);
-            vec3 deep = plasma * 0.30;
-            vec3 hot = plasma * (0.88 + filament * 0.30);
-            vec3 col = mix(deep, hot, 0.52 + filament * 0.38);
-            col = mix(col, vec3(0.82, 0.94, 1.0), filament * 0.22 + fresnel * 0.16);
-            col *= uIntensity;
-            gl_FragColor = vec4(col, 1.0);
+            float diffuse = 0.34 + max(dot(N, L), 0.0) * 0.72;
+            float fresnel = pow(1.0 - max(dot(N, V), 0.0), 2.25);
+            float specular = pow(max(dot(N, H), 0.0), 38.0);
+
+            vec3 deep = uPaletteColor * 0.22;
+            vec3 body = uPaletteColor * (0.72 + filament * 0.36);
+            vec3 nodeCyan = vec3(0.02, 0.72, 1.0);
+            vec3 plasma = mix(deep, body, 0.52 + filament * 0.32);
+            plasma = mix(plasma, nodeCyan * 0.82, vNodeInfluence * 0.38);
+            plasma = mix(plasma, vec3(0.88, 0.97, 1.0), filament * 0.30 + specular * 0.52);
+            plasma += uPaletteColor * fresnel * 0.42;
+            plasma *= diffuse * uIntensity;
+            gl_FragColor = vec4(plasma, 1.0);
           }
         `
       });
-      const plasmaBridgeMesh = new THREE.InstancedMesh(plasmaBridgeGeo, plasmaBridgeMat, MAX_NODES);
-      plasmaBridgeMesh.count = appNodes.length;
-      plasmaBridgeMesh.frustumCulled = false;
-      coreRoot.add(plasmaBridgeMesh);
+      const metaballMesh = new THREE.Mesh(metaballGeo, metaballMat);
+      metaballMesh.frustumCulled = false;
+      metaballMesh.renderOrder = 2;
+      coreRoot.add(metaballMesh);
 
       // DRAW CALL 5: Плоскости глифов в центре каждого узла (InstancedMesh)
       const glyphPlaneGeo = new THREE.PlaneGeometry(0.40, 0.40);
@@ -1048,8 +1012,7 @@
       function updateOrbitalNodes(dt) {
         const count = Math.min(appNodes.length, MAX_NODES);
         glyphInstancedMesh.count = count;
-        plasmaDropMesh.count = count;
-        plasmaBridgeMesh.count = count;
+        metaballMat.uniforms.uNodeCount.value = count;
         swarmMat.uniforms.uActiveNodeCount.value = count;
 
         if (state.activeNodePulse > 0) {
@@ -1075,36 +1038,27 @@
           _dummy.updateMatrix();
           glyphInstancedMesh.setMatrixAt(i, _dummy.matrix);
 
-          // Plasma droplet follows the exact same orbital transform as the native logo.
-          _dummy.updateMatrix();
-          plasmaDropMesh.setMatrixAt(i, _dummy.matrix);
-
-          // Connect the core surface to the near edge of each droplet.
-          // Bridges behind the core are naturally hidden by the scene depth buffer.
-          _bridgeDir.copy(_pos).normalize();
-          _bridgeStart.copy(_bridgeDir).multiplyScalar(0.62);
-          _bridgeEnd.copy(_pos).addScaledVector(_bridgeDir, -0.12);
-          const bridgeLength = _bridgeStart.distanceTo(_bridgeEnd);
-          if (bridgeLength > 0.025) {
-            _bridgeAxis.copy(_bridgeEnd).sub(_bridgeStart).normalize();
-            _dummy.position.copy(_bridgeStart).add(_bridgeEnd).multiplyScalar(0.5);
-            _dummy.quaternion.setFromUnitVectors(_bridgeUp, _bridgeAxis);
-            _dummy.scale.set(1.0, bridgeLength, 1.0);
-          } else {
-            _dummy.position.copy(_pos);
-            _dummy.scale.set(0.0, 0.0, 0.0);
-          }
-          _dummy.updateMatrix();
-          plasmaBridgeMesh.setMatrixAt(i, _dummy.matrix);
+          // Feed exact orbital positions into the shared implicit plasma field.
+          const coreRadius = 0.95 * 0.76 * state.currentScale - 0.045;
+          const iconRadius = 0.30 * Math.min(1.35, Math.max(0.75, state.devIconScale));
+          const surfaceGap = Math.max(0.0, _pos.length() - (coreRadius + iconRadius));
+          const blend = Math.min(2.05, Math.max(0.72, surfaceGap * 2.0 + 0.50));
+          const dataOffset = i * 4;
+          metaballNodeData[dataOffset] = _pos.x;
+          metaballNodeData[dataOffset + 1] = _pos.y;
+          metaballNodeData[dataOffset + 2] = _pos.z;
+          metaballNodeData[dataOffset + 3] = blend;
 
           nodeCentersUniform[i * 4]     = _pos.x;
           nodeCentersUniform[i * 4 + 1] = _pos.y;
           nodeCentersUniform[i * 4 + 2] = _pos.z;
           nodeCentersUniform[i * 4 + 3] = hl;
         }
+        metaballMat.uniforms.uCoreRadius.value = 0.95 * 0.76 * state.currentScale - 0.045;
+        metaballMat.uniforms.uIconRadius.value = 0.30 * Math.min(1.35, Math.max(0.75, state.devIconScale));
+        metaballMat.uniforms.uNodeData.value = metaballNodeData;
+        metaballMesh.visible = count > 0;
         glyphInstancedMesh.instanceMatrix.needsUpdate = true;
-        plasmaDropMesh.instanceMatrix.needsUpdate = true;
-        plasmaBridgeMesh.instanceMatrix.needsUpdate = true;
         glyphInstancedGeo.attributes.aHighlight.needsUpdate = true;
       }
 
