@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Jarvis Orbital Lab</title>
+<style>
+:root{color-scheme:dark;--bg:#070b13;--panel:rgba(13,22,36,.88);--line:rgba(115,180,220,.22);--cyan:#71dcff}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);font:14px system-ui,sans-serif;color:#eaf7ff}
+#scene{position:absolute;inset:0}canvas{display:block;width:100%;height:100%}
+#panel{position:absolute;left:12px;top:12px;width:min(320px,calc(100vw - 24px));max-height:calc(100dvh - 24px);overflow:auto;padding:14px;border:1px solid var(--line);border-radius:16px;background:var(--panel);backdrop-filter:blur(16px);box-shadow:0 12px 40px #0008}
+h1{font-size:17px;margin:0 0 4px}p{margin:0 0 12px;color:#9db6c8;font-size:12px;line-height:1.4}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:10px 0 4px}.row label{font-size:12px;color:#c6d9e7}.row output{font-variant-numeric:tabular-nums;color:var(--cyan);font-size:12px}
+input[type=range]{width:100%;accent-color:#69d8ff}
+.actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+button,select{background:#14283b;color:#eaf7ff;border:1px solid var(--line);border-radius:9px;padding:8px 10px;font:inherit;font-size:12px}
+button:active{background:#214663}.stat{margin-top:12px;padding-top:10px;border-top:1px solid var(--line);font:11px/1.6 ui-monospace,monospace;color:#a9c5d7}
+#hint{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);padding:8px 12px;border-radius:20px;background:#091522bb;border:1px solid var(--line);font-size:11px;color:#b7d1e2;white-space:nowrap}
+@media(max-height:560px){#panel{width:260px;padding:10px}.row{margin:6px 0 2px}p{margin-bottom:6px}}
+</style>
+</head>
+<body>
+<div id="scene"></div>
+<section id="panel">
+<h1>JARVIS / Orbital Lab</h1>
+<p>Изолированный стенд. Меняйте параметры и наблюдайте геометрию, глубину и поведение иконок. Основной лаунчер не затрагивается.</p>
+<div class="row"><label for="core">Радиус ядра</label><output id="coreV">0.72</output></div><input id="core" type="range" min=".35" max="1.15" step=".01" value=".72">
+<div class="row"><label for="orbit">Радиус орбит</label><output id="orbitV">2.05</output></div><input id="orbit" type="range" min="1.25" max="3.1" step=".01" value="2.05">
+<div class="row"><label for="tilt">Наклон орбит</label><output id="tiltV">28°</output></div><input id="tilt" type="range" min="0" max="75" step="1" value="28">
+<div class="row"><label for="speed">Скорость движения</label><output id="speedV">0.35×</output></div><input id="speed" type="range" min="0" max="1.5" step=".01" value=".35">
+<div class="row"><label for="count">Количество иконок</label><output id="countV">12</output></div><input id="count" type="range" min="4" max="24" step="1" value="12">
+<div class="row"><label for="mode">Режим глубины</label></div>
+<select id="mode"><option value="solid">Непрозрачное ядро (эталон)</option><option value="shell">Прозрачная оболочка</option><option value="glow">Свечение + оболочка</option></select>
+<div class="actions">
+<button id="pause">Пауза</button><button id="reset">Сброс</button><button id="camera">Камера: авто</button>
+</div>
+<div class="stat" id="stats">Инициализация…</div>
+</section>
+<div id="hint">Проведите пальцем, чтобы вращать сцену · Нажмите на иконку</div>
+<script src="../jarvis_core/three.min.local.js"></script>
+<script>
+(() => {
+'use strict';
+const host=document.getElementById('scene'), stat=document.getElementById('stats');
+if(!window.THREE){stat.textContent='ОШИБКА: локальная библиотека Three.js не загружена.';return;}
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x070b13);
+const camera=new THREE.PerspectiveCamera(42,1,.1,100);camera.position.set(0,2.5,8.8);camera.lookAt(0,0,0);
+const renderer=new THREE.WebGLRenderer({antialias:true,alpha:false,powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.5));renderer.outputColorSpace=THREE.SRGBColorSpace;host.appendChild(renderer.domElement);
+scene.add(new THREE.AmbientLight(0x91c9e8,.7));
+const key=new THREE.PointLight(0x65dfff,2.4,18);key.position.set(3,4,5);scene.add(key);
+const rim=new THREE.PointLight(0x526cff,1.8,15);rim.position.set(-4,-1,-3);scene.add(rim);
+const root=new THREE.Group();scene.add(root);
+const coreGroup=new THREE.Group();root.add(coreGroup);
+const coreGeo=new THREE.SphereGeometry(1,48,32);
+const coreMat=new THREE.MeshPhysicalMaterial({color:0x102b46,emissive:0x0879ad,emissiveIntensity:1.0,roughness:.28,metalness:.15,clearcoat:.8,clearcoatRoughness:.2});
+const core=new THREE.Mesh(coreGeo,coreMat);coreGroup.add(core);
+const wire=new THREE.Mesh(new THREE.SphereGeometry(1.025,32,24),new THREE.MeshBasicMaterial({color:0x5bdcff,wireframe:true,transparent:true,opacity:.11,depthWrite:false}));coreGroup.add(wire);
+const orbitGroup=new THREE.Group();root.add(orbitGroup);
+const iconGeo=new THREE.SphereGeometry(.115,18,14);
+const iconMaterials=[0x65dfff,0xa18cff,0x7cf0c0,0xffc477,0xff83b6,0x8daeff].map(c=>new THREE.MeshStandardMaterial({color:c,emissive:c,emissiveIntensity:.16,roughness:.34,metalness:.2}));
+const icons=[];const raycaster=new THREE.Raycaster(),pointer=new THREE.Vector2();
+let coreR=.72,orbitR=2.05,tilt=28*Math.PI/180,speed=.35,count=12,paused=false,autoCamera=true,selected=null,last=performance.now(),frames=0,fps=0,lastFps=performance.now();
+function rebuild(){
+ while(orbitGroup.children.length) {const o=orbitGroup.children.pop();if(o.geometry!==orbitGroup){} }
+ icons.length=0;
+ for(let i=0;i<count;i++){
+  const mesh=new THREE.Mesh(iconGeo,iconMaterials[i%iconMaterials.length]);mesh.userData.index=i;orbitGroup.add(mesh);icons.push(mesh);
+ }
+}
+function setGeometry(){
+ core.scale.setScalar(coreR);wire.scale.setScalar(coreR);
+ while(orbitGroup.children.length){const o=orbitGroup.children[0];orbitGroup.remove(o);}
+ icons.length=0;
+ for(let i=0;i<count;i++){const m=new THREE.Mesh(iconGeo,iconMaterials[i%iconMaterials.length]);m.userData.index=i;orbitGroup.add(m);icons.push(m);}
+}
+function place(t){
+ for(let i=0;i<icons.length;i++){
+  const lane=i%3, ring=Math.floor(i/3);
+  const a=t*speed*(lane===1?-.72:lane===2?1.18:1)+(i/Math.max(1,icons.length))*Math.PI*2;
+  const r=orbitR+(lane-1)*.18;
+  const x=Math.cos(a)*r;
+  const z=Math.sin(a)*r*.72;
+  const y=Math.sin(a*.65+ring*.9)*.34;
+  const v=new THREE.Vector3(x,y,z);
+  v.applyAxisAngle(new THREE.Vector3(1,0,0),tilt+(lane-1)*.12);
+  icons[i].position.copy(v);
+  const depth=(camera.position.clone().sub(icons[i].getWorldPosition(new THREE.Vector3()))).length();
+  const scale=THREE.MathUtils.clamp(1.18-(depth/18),.68,1.12);
+  icons[i].scale.setScalar(scale);
+ }
+}
+function resize(){const w=host.clientWidth,h=host.clientHeight;camera.aspect=w/Math.max(1,h);camera.updateProjectionMatrix();renderer.setSize(w,h,false);}
+new ResizeObserver(resize).observe(host);resize();
+const controls=['core','orbit','tilt','speed','count'];
+controls.forEach(id=>document.getElementById(id).addEventListener('input',e=>{
+ const v=+e.target.value;
+ if(id==='core')coreR=v;if(id==='orbit')orbitR=v;if(id==='tilt')tilt=v*Math.PI/180;if(id==='speed')speed=v;if(id==='count')count=v;
+ document.getElementById(id+'V').textContent=id==='tilt'?v+'°':id==='speed'?v.toFixed(2)+'×':id==='count'?v:v.toFixed(2);
+ if(id==='core'){core.scale.setScalar(coreR);wire.scale.setScalar(coreR);}
+ if(id==='count')setGeometry();
+}));
+document.getElementById('mode').addEventListener('change',e=>{
+ const m=e.target.value;
+ coreMat.transparent=m!=='solid';coreMat.opacity=m==='shell'?.28:m==='glow'?.42:1;coreMat.depthWrite=m==='solid';
+ wire.material.opacity=m==='glow'?.28:.11;
+});
+document.getElementById('pause').onclick=()=>{paused=!paused;document.getElementById('pause').textContent=paused?'Продолжить':'Пауза';};
+document.getElementById('reset').onclick=()=>{coreR=.72;orbitR=2.05;tilt=28*Math.PI/180;speed=.35;count=12;for(const [id,v] of Object.entries({core:.72,orbit:2.05,tilt:28,speed:.35,count:12})){document.getElementById(id).value=v;document.getElementById(id+'V').textContent=id==='tilt'?'28°':id==='speed'?'0.35×':id==='count'?'12':(+v).toFixed(2);}core.scale.setScalar(coreR);wire.scale.setScalar(coreR);setGeometry();};
+document.getElementById('camera').onclick=()=>{autoCamera=!autoCamera;document.getElementById('camera').textContent='Камера: '+(autoCamera?'авто':'ручная');};
+let drag=null;
+renderer.domElement.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY,moved:false};renderer.domElement.setPointerCapture(e.pointerId);});
+renderer.domElement.addEventListener('pointermove',e=>{if(!drag)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(Math.abs(dx)+Math.abs(dy)>3)drag.moved=true;root.rotation.y+=dx*.006;root.rotation.x=THREE.MathUtils.clamp(root.rotation.x+dy*.004,-.8,.8);drag.x=e.clientX;drag.y=e.clientY;});
+renderer.domElement.addEventListener('pointerup',e=>{if(drag&&!drag.moved){const rect=renderer.domElement.getBoundingClientRect();pointer.x=((e.clientX-rect.left)/rect.width)*2-1;pointer.y=-((e.clientY-rect.top)/rect.height)*2+1;raycaster.setFromCamera(pointer,camera);const hits=raycaster.intersectObjects(icons,false);selected=hits.length?hits[0].object.userData.index:null;stat.dataset.hit=selected===null?'none':'icon '+selected;}drag=null;});
+renderer.domElement.addEventListener('pointercancel',()=>drag=null);
+function frame(now){
+ requestAnimationFrame(frame);const dt=Math.min(.05,(now-last)/1000);last=now;
+ if(!paused){if(autoCamera)root.rotation.y+=dt*.045;place(now/1000);}
+ renderer.render(scene,camera);frames++;
+ if(now-lastFps>1000){fps=Math.round(frames*1000/(now-lastFps));frames=0;lastFps=now;stat.textContent='FPS: '+fps+'\nDraw calls: '+renderer.info.render.calls+'\nTriangles: '+renderer.info.render.triangles+'\nGeometries: '+renderer.info.memory.geometries+' · Textures: '+renderer.info.memory.textures+'\nВыбор: '+(stat.dataset.hit||'—');}
+}
+setGeometry();requestAnimationFrame(frame);
+window.addEventListener('pagehide',()=>{renderer.dispose();coreGeo.dispose();iconGeo.dispose();coreMat.dispose();iconMaterials.forEach(m=>m.dispose());});
+})();
+</script>
+</body>
+</html>
