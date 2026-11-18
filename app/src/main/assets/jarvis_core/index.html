@@ -243,6 +243,8 @@
         vertexShader: `
           uniform float uTime;
           uniform float uPulseAmp;
+          uniform float uDevPulse;
+          uniform float uDevGlow;
           varying vec3 vNormalW;
           varying vec3 vWorldPos;
           varying vec3 vPosLocal;
@@ -287,7 +289,6 @@
             vec3 innerAzure = uPaletteColor * 0.34;
             vec3 col = mix(innerAzure, outerCyan, wisps);
 
-            float glowRadius = 1.0 + uDevGlow * 0.16;
             float alpha = softHalo * (0.18 + wisps * 0.58) * uIntensity * uDevGlow * (1.0 + uSurge * 0.25);
             col *= 0.8 + uDevGlow * 0.35;
             gl_FragColor = vec4(col, clamp(alpha, 0.0, 0.85));
