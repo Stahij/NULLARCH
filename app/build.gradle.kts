@@ -12,8 +12,8 @@ android {
         applicationId = "com.stahij.jarvis.preview"
         minSdk = 26
         targetSdk = 35
-        versionCode = 45
-        versionName = "1.7.7"
+        versionCode = 46
+        versionName = "1.7.8"
 
         ndk {
             abiFilters += listOf("arm64-v8a")
@@ -70,7 +70,7 @@ android {
 // Developer HUD 1.7.3: live visual tuning overlay, shared palette and saved profile.
 // Filament stays isolated in Debug until the renderer spike passes device tests.
 // Visual effects 1.7.5: expanded halo, pulse breathing and particle field.
-// Icon rendering 1.7.7: floating native app logos with restrained plasma reflections.
+// Plasma UI 1.7.8: instanced liquid app droplets and depth-aware animated bridges.
 dependencies {
     debugImplementation("com.google.android.filament:filament-android:1.57.1")
 }
