@@ -23,6 +23,8 @@ class LauncherActivity : Activity() {
     private val cyan = Color.rgb(99, 224, 255)
     private val bg = Color.rgb(3, 8, 20)
     private var installedApps: List<LauncherApp> = emptyList()
+    private lateinit var workspaceRoot: FrameLayout
+    private var developerOverlay: View? = null
     private val selectedCore = JarvisCoreBridge.CoreTheme.PLASMA
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -92,12 +94,12 @@ class LauncherActivity : Activity() {
         coreView.bridge.setRotationEnabled(
             getSharedPreferences("jarvis_launcher_gestures", MODE_PRIVATE).getBoolean("core_rotate", true)
         )
-        val root = FrameLayout(this).apply {
+        workspaceRoot = FrameLayout(this).apply {
             setBackgroundColor(Color.rgb(3, 8, 20))
             addView(coreView, FrameLayout.LayoutParams(-1, -1))
             addView(workspace, FrameLayout.LayoutParams(-1, -1))
         }
-        setContentView(root)
+        setContentView(workspaceRoot)
     }
 
     private fun launchApp(app: LauncherApp) {
@@ -121,113 +123,137 @@ class LauncherActivity : Activity() {
     }
 
     private fun showDeveloperPanel() {
+        if (developerOverlay != null) return
         val prefs = getSharedPreferences("jarvis_developer_visuals", MODE_PRIVATE)
-        val dialog = android.app.Dialog(this)
+        val overlay = FrameLayout(this)
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(18), dp(20), dp(16))
-            setBackground(GradientDrawable().apply {
-                setColor(Color.rgb(5, 14, 29))
-                cornerRadius = dp(24).toFloat()
-                setStroke(dp(1), Color.rgb(35, 119, 158))
-            })
+            setPadding(dp(16), dp(10), dp(16), dp(10))
+            background = GradientDrawable(
+                GradientDrawable.Orientation.TOP_BOTTOM,
+                intArrayOf(Color.argb(246, 5, 15, 31), Color.argb(238, 8, 24, 43))
+            ).apply {
+                cornerRadii = floatArrayOf(dp(22).toFloat(), dp(22).toFloat(), dp(22).toFloat(), dp(22).toFloat(), 0f, 0f, 0f, 0f)
+                setStroke(dp(1), Color.argb(180, 53, 166, 205))
+            }
         }
-        panel.addView(TextView(this).apply {
-            text = "JARVIS • DEV VISUALS"
-            textSize = 18f
-            typeface = Typeface.DEFAULT_BOLD
-            setTextColor(cyan)
-        })
-        panel.addView(TextView(this).apply {
-            text = "Изменения применяются сразу к настоящему ядру."
-            textSize = 12f
-            setTextColor(Color.LTGRAY)
-            setPadding(0, dp(4), 0, dp(12))
-        })
-        val scroll = android.widget.ScrollView(this)
-        val controls = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        scroll.addView(controls)
+        val header = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        header.addView(TextView(this).apply {
+            text = "JARVIS  /  DEVELOPER HUD"
+            textSize = 14f; typeface = Typeface.DEFAULT_BOLD; setTextColor(cyan)
+        }, LinearLayout.LayoutParams(0, dp(36), 1f))
+        val collapse = TextView(this).apply {
+            text = "Свернуть  ×"; textSize = 13f; setTextColor(Color.WHITE); gravity = Gravity.CENTER
+            setPadding(dp(8), 0, dp(4), 0)
+            setOnClickListener { workspaceRoot.removeView(overlay); developerOverlay = null }
+        }
+        header.addView(collapse)
+        panel.addView(header)
+
+        val tabs = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER }
+        val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val scroll = android.widget.ScrollView(this).apply { isFillViewport = true; addView(content) }
+        panel.addView(tabs)
         panel.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
 
-        fun addSlider(title: String, key: String, minValue: Int, maxValue: Int, defaultValue: Int, suffix: String, apply: (Float) -> Unit) {
-            val label = TextView(this).apply {
-                textSize = 14f
-                setTextColor(Color.WHITE)
-                setPadding(0, dp(9), 0, 0)
-            }
-            controls.addView(label)
-            val seek = android.widget.SeekBar(this).apply {
-                max = maxValue - minValue
-                progress = (prefs.getInt(key, defaultValue) - minValue).coerceIn(0, max)
-            }
-            fun update(value: Int, persist: Boolean) {
-                label.text = "$title: $value$suffix"
-                val normalized = value.toFloat()
-                apply(normalized)
-                if (persist) prefs.edit().putInt(key, value).apply()
-            }
-            update(seek.progress + minValue, false)
-            seek.setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
-                override fun onProgressChanged(bar: android.widget.SeekBar?, progress: Int, fromUser: Boolean) {
-                    update(progress + minValue, fromUser)
-                }
-                override fun onStartTrackingTouch(bar: android.widget.SeekBar?) = Unit
-                override fun onStopTrackingTouch(bar: android.widget.SeekBar?) = Unit
-            })
-            controls.addView(seek)
-        }
-        fun send() {
+        fun applySettings() {
             coreView.bridge.setDeveloperSettings(
                 prefs.getInt("core_scale", 100) / 100f,
                 prefs.getInt("icon_scale", 100) / 100f,
                 prefs.getInt("orbit_scale", 100) / 100f,
                 prefs.getInt("orbit_speed", 100) / 100f,
                 prefs.getInt("intensity", 100) / 100f,
-                prefs.getInt("hue", 0).toFloat()
+                prefs.getInt("palette_hue", 190).toFloat()
             )
         }
-        addSlider("Размер ядра", "core_scale", 70, 140, 100, "%") { send() }
-        addSlider("Размер иконок", "icon_scale", 60, 190, 100, "%") { send() }
-        addSlider("Радиус орбит", "orbit_scale", 70, 145, 100, "%") { send() }
-        addSlider("Скорость орбит", "orbit_speed", 0, 250, 100, "%") { send() }
-        addSlider("Яркость / активность", "intensity", 40, 180, 100, "%") { send() }
-        addSlider("Оттенок", "hue", 0, 360, 0, "°") { send() }
-
-        val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.END }
-        val reset = TextView(this).apply {
-            text = "Сбросить"
-            textSize = 14f
-            setTextColor(cyan)
-            gravity = Gravity.CENTER
-            setPadding(dp(14), dp(12), dp(14), dp(8))
-            setOnClickListener {
-                prefs.edit().clear().apply()
-                dialog.dismiss()
-                showDeveloperPanel()
-                applySavedDeveloperSettings()
+        fun addSlider(title: String, key: String, min: Int, max: Int, default: Int, suffix: String = "") {
+            val label = TextView(this).apply { textSize = 13f; setTextColor(Color.WHITE); setPadding(0, dp(5), 0, 0) }
+            content.addView(label)
+            val seek = android.widget.SeekBar(this).apply {
+                this.max = max - min
+                progress = (prefs.getInt(key, default) - min).coerceIn(0, this.max)
+            }
+            fun show(v: Int, save: Boolean) {
+                label.text = "$title: $v$suffix"
+                if (save) prefs.edit().putInt(key, v).apply()
+                applySettings()
+            }
+            show(seek.progress + min, false)
+            seek.setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(bar: android.widget.SeekBar?, progress: Int, fromUser: Boolean) = show(progress + min, fromUser)
+                override fun onStartTrackingTouch(bar: android.widget.SeekBar?) = Unit
+                override fun onStopTrackingTouch(bar: android.widget.SeekBar?) = Unit
+            })
+            content.addView(seek)
+        }
+        fun showTab(tab: String) {
+            content.removeAllViews()
+            when (tab) {
+                "Ядро" -> {
+                    addSlider("Размер ядра", "core_scale", 70, 140, 100, "%")
+                    addSlider("Пульсация / активность", "intensity", 40, 180, 100, "%")
+                }
+                "Иконки" -> addSlider("Размер иконок", "icon_scale", 60, 190, 100, "%")
+                "Орбиты" -> {
+                    addSlider("Радиус орбит", "orbit_scale", 70, 145, 100, "%")
+                    addSlider("Скорость вращения", "orbit_speed", 0, 250, 100, "%")
+                }
+                "Эффекты" -> {
+                    addSlider("Сила свечения", "intensity", 40, 180, 100, "%")
+                    addSlider("Цветовая гамма", "palette_hue", 0, 360, 190, "°")
+                    content.addView(TextView(this).apply {
+                        text = "Ползунок цветового спектра меняет общую палитру сцены. Белые энергетические блики сохраняются."
+                        textSize = 11f; setTextColor(Color.LTGRAY); setPadding(0, dp(5), 0, dp(8))
+                    })
+                    val save = TextView(this).apply {
+                        text = "Сохранить текущий профиль"; textSize = 13f; setTextColor(cyan)
+                        setPadding(0, dp(10), 0, dp(10))
+                        setOnClickListener {
+                            prefs.edit().putBoolean("profile_saved", true).apply()
+                            Toast.makeText(this@LauncherActivity, "Профиль визуала сохранён", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                    content.addView(save)
+                }
             }
         }
-        val close = TextView(this).apply {
-            text = "Готово"
-            textSize = 14f
-            typeface = Typeface.DEFAULT_BOLD
-            setTextColor(Color.WHITE)
-            gravity = Gravity.CENTER
-            setPadding(dp(14), dp(12), dp(14), dp(8))
-            setOnClickListener { dialog.dismiss() }
+        listOf("Ядро", "Иконки", "Орбиты", "Эффекты").forEach { tab ->
+            val item = TextView(this).apply {
+                text = tab; textSize = 12f; gravity = Gravity.CENTER
+                setTextColor(if (tab == "Ядро") cyan else Color.LTGRAY)
+                setPadding(dp(8), dp(8), dp(8), dp(8))
+                setOnClickListener {
+                    for (i in 0 until tabs.childCount) (tabs.getChildAt(i) as? TextView)?.setTextColor(Color.LTGRAY)
+                    setTextColor(cyan)
+                    showTab(tab)
+                }
+            }
+            tabs.addView(item, LinearLayout.LayoutParams(0, dp(38), 1f))
         }
-        actions.addView(reset)
-        actions.addView(close)
-        panel.addView(actions)
-        dialog.setContentView(panel)
-        dialog.show()
-        dialog.window?.apply {
-            setBackgroundDrawableResource(android.R.color.transparent)
-            setLayout((resources.displayMetrics.widthPixels * .92f).toInt(), (resources.displayMetrics.heightPixels * .78f).toInt())
-            setGravity(Gravity.CENTER)
-            addFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
-            attributes = attributes.apply { dimAmount = .72f }
+        showTab("Ядро")
+
+        val footer = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.END or Gravity.CENTER_VERTICAL }
+        val reset = TextView(this).apply {
+            text = "Сброс"; textSize = 12f; setTextColor(cyan); setPadding(dp(12), dp(8), dp(12), dp(6))
+            setOnClickListener {
+                prefs.edit().clear().apply()
+                applySettings()
+                showTab("Ядро")
+                Toast.makeText(this@LauncherActivity, "Параметры сброшены", Toast.LENGTH_SHORT).show()
+            }
         }
+        val save = TextView(this).apply {
+            text = "Сохранить"; textSize = 12f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE)
+            setPadding(dp(12), dp(8), dp(4), dp(6))
+            setOnClickListener {
+                prefs.edit().putBoolean("profile_saved", true).apply()
+                Toast.makeText(this@LauncherActivity, "Настройки сохранены", Toast.LENGTH_SHORT).show()
+            }
+        }
+        footer.addView(reset); footer.addView(save); panel.addView(footer)
+        overlay.addView(panel, FrameLayout.LayoutParams(-1, (resources.displayMetrics.heightPixels * 0.42f).toInt(), Gravity.BOTTOM))
+        workspaceRoot.addView(overlay, FrameLayout.LayoutParams(-1, -1))
+        developerOverlay = overlay
     }
 
     private fun showCoreMenu() {
