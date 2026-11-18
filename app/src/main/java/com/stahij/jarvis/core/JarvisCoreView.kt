@@ -5,16 +5,15 @@ import android.content.Context
 import android.graphics.Color
 import android.util.AttributeSet
 import android.view.ViewGroup
-import android.view.MotionEvent
 import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
 
 @SuppressLint("SetJavaScriptEnabled")
-class JarvisCoreView @JvmOverloads constructor(context: Context, onNodeClick: (String) -> Unit = {}, attrs: AttributeSet? = null, defStyleAttr: Int = 0) : FrameLayout(context, attrs, defStyleAttr) {
+class JarvisCoreView @JvmOverloads constructor(context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0) : FrameLayout(context, attrs, defStyleAttr) {
     private val webView = WebView(context)
-    val bridge = JarvisCoreBridge(webView, onNodeClick)
+    val bridge = JarvisCoreBridge(webView)
     private var destroyed = false
 
     init {
@@ -23,7 +22,6 @@ class JarvisCoreView @JvmOverloads constructor(context: Context, onNodeClick: (S
         webView.apply {
             setBackgroundColor(Color.TRANSPARENT)
             settings.javaScriptEnabled = true
-            addJavascriptInterface(bridge, "AndroidLauncher")
             settings.domStorageEnabled = false
             settings.allowFileAccess = true
             settings.allowContentAccess = false
@@ -40,13 +38,6 @@ class JarvisCoreView @JvmOverloads constructor(context: Context, onNodeClick: (S
         }
         addView(webView, LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         webView.loadUrl("file:///android_asset/jarvis_core/index.html")
-    }
-
-    fun dispatchPointerEvent(event: MotionEvent) {
-        if (destroyed) return
-        val copy = MotionEvent.obtain(event)
-        webView.dispatchTouchEvent(copy)
-        copy.recycle()
     }
 
     fun onResume() { if (!destroyed) { webView.onResume(); bridge.resume() } }
