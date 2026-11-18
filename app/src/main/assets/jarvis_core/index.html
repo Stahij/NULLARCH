@@ -1020,11 +1020,12 @@
           glyphHighlightAttr[i] = hl;
 
           _dummy.position.copy(_pos);
+          _dummy.quaternion.identity();
+          _dummy.scale.setScalar(1.0);
           _dummy.updateMatrix();
           glyphInstancedMesh.setMatrixAt(i, _dummy.matrix);
 
           // Plasma droplet follows the exact same orbital transform as the native logo.
-          _dummy.scale.setScalar(1.0);
           _dummy.updateMatrix();
           plasmaDropMesh.setMatrixAt(i, _dummy.matrix);
 
