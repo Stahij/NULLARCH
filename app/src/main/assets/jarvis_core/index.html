@@ -847,7 +847,7 @@
             vec4 worldCenter = modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
             vec4 mvCenter = viewMatrix * worldCenter;
             // Lift the flat native logo just in front of its 3D plasma droplet.
-            mvCenter.z += 0.30;
+            mvCenter.z += 0.36;
             float scale = 1.0 + aHighlight * 0.28;
             mvCenter.xy += position.xy * scale * uIconScale;
 
@@ -878,6 +878,7 @@
       // Logos render after their plasma droplets so original artwork stays crisp and readable.
       glyphInstancedMesh.count = appNodes.length;
       glyphInstancedMesh.frustumCulled = false;
+      glyphInstancedMesh.renderOrder = 3;
       coreRoot.add(glyphInstancedMesh);
 
       // DRAW CALL 6: SWARM NODES — Рой заряженных микрочастиц вокруг каждого приложения
@@ -1003,11 +1004,6 @@
       const _pos = new THREE.Vector3();
       const _worldPos = new THREE.Vector3();
       const _projVec = new THREE.Vector3();
-      const _bridgeDir = new THREE.Vector3();
-      const _bridgeStart = new THREE.Vector3();
-      const _bridgeEnd = new THREE.Vector3();
-      const _bridgeAxis = new THREE.Vector3();
-      const _bridgeUp = new THREE.Vector3(0, 1, 0);
 
       function updateOrbitalNodes(dt) {
         const count = Math.min(appNodes.length, MAX_NODES);
