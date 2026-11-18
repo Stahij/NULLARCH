@@ -654,6 +654,7 @@
         vertexShader: `
           attribute float aGlyphIndex;
           attribute float aHighlight;
+          uniform float uIconScale;
           varying vec2 vUv;
           varying float vHighlight;
           varying float vDepthFade;
@@ -679,7 +680,6 @@
           precision mediump float;
           uniform sampler2D uAtlas;
           uniform float uIntensity;
-          uniform float uIconScale;
           varying vec2 vUv;
           varying float vHighlight;
           varying float vDepthFade;
