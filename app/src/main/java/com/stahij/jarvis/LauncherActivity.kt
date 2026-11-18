@@ -23,7 +23,7 @@ class LauncherActivity : Activity() {
     private val cyan = Color.rgb(99, 224, 255)
     private val bg = Color.rgb(3, 8, 20)
     private var installedApps: List<LauncherApp> = emptyList()
-    private var selectedCore = JarvisCoreBridge.CoreTheme.ATOMIC
+    private val selectedCore = JarvisCoreBridge.CoreTheme.PLASMA
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -31,11 +31,6 @@ class LauncherActivity : Activity() {
         window.navigationBarColor = bg
         window.navigationBarDividerColor = Color.TRANSPARENT
         loadInstalledApps()
-        selectedCore = runCatching {
-            JarvisCoreBridge.CoreTheme.valueOf(
-                getSharedPreferences("jarvis_core", MODE_PRIVATE).getString("theme", "ATOMIC") ?: "ATOMIC"
-            )
-        }.getOrDefault(JarvisCoreBridge.CoreTheme.ATOMIC)
         buildWorkspace()
     }
 
@@ -96,18 +91,15 @@ class LauncherActivity : Activity() {
     }
 
     private fun showCoreMenu() {
-        val options = arrayOf("Atomic Core", "Plasma Core", "Настройки и инструменты")
+        val options = arrayOf("Plasma Core", "Настройки и инструменты")
         AlertDialog.Builder(this)
             .setTitle("Визуальное ядро Jarvis")
             .setItems(options) { _, which ->
                 when (which) {
-                    0, 1 -> {
-                        selectedCore = if (which == 0) JarvisCoreBridge.CoreTheme.ATOMIC else JarvisCoreBridge.CoreTheme.PLASMA
-                        getSharedPreferences("jarvis_core", MODE_PRIVATE).edit()
-                            .putString("theme", selectedCore.name).apply()
+                    0 -> {
                         if (::coreView.isInitialized) coreView.bridge.setTheme(selectedCore)
                     }
-                    2 -> startActivity(Intent(this, MainActivity::class.java).apply {
+                    1 -> startActivity(Intent(this, MainActivity::class.java).apply {
                         putExtra(MainActivity.EXTRA_TOOLS_ONLY, true)
                     })
                 }
@@ -246,7 +238,7 @@ class LauncherActivity : Activity() {
                 "ЯДРО\n" +
                 "• Одинарное нажатие — вернуть приложения к сохранённым позициям / возобновить движение\n" +
                 "• Двойное нажатие — открыть чат с Jarvis\n" +
-                "• Долгое нажатие — выбор ядра и настройки\n\n" +
+                "• Долгое нажатие — настройки ядра\n\n" +
                 "РАБОЧИЙ СТОЛ\n" +
                 "• Свайп вверх — каталог приложений\n" +
                 "• Свайп влево или вправо — смена страницы\n" +
