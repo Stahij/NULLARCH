@@ -8,6 +8,7 @@ import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.Gravity
+import android.view.View
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
@@ -163,13 +164,17 @@ class LauncherActivity : Activity() {
                 prefs.getInt("orbit_scale", 100) / 100f,
                 prefs.getInt("orbit_speed", 100) / 100f,
                 prefs.getInt("intensity", 100) / 100f,
-                prefs.getInt("palette_hue", 190).toFloat()
+                prefs.getInt("palette_hue", 190).toFloat(),
+                prefs.getInt("glow", 100) / 100f,
+                prefs.getInt("pulse", 100) / 100f,
+                prefs.getInt("particles", 100) / 100f
             )
         }
         fun addSlider(title: String, key: String, min: Int, max: Int, default: Int, suffix: String = "") {
             val label = TextView(this).apply { textSize = 13f; setTextColor(Color.WHITE); setPadding(0, dp(5), 0, 0) }
             content.addView(label)
             val seek = android.widget.SeekBar(this).apply {
+                if (key == "palette_hue") progressDrawable = GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, intArrayOf(Color.RED, Color.YELLOW, Color.GREEN, Color.CYAN, Color.BLUE, Color.MAGENTA, Color.RED)).apply { cornerRadius = dp(5).toFloat() }
                 this.max = max - min
                 progress = (prefs.getInt(key, default) - min).coerceIn(0, this.max)
             }
@@ -199,8 +204,10 @@ class LauncherActivity : Activity() {
                     addSlider("Скорость вращения", "orbit_speed", 0, 250, 100, "%")
                 }
                 "Эффекты" -> {
-                    addSlider("Сила свечения", "intensity", 40, 180, 100, "%")
-                    addSlider("Цветовая гамма", "palette_hue", 0, 360, 190, "°")
+                    addSlider("Сила свечения", "glow", 0, 200, 100, "%")
+                    addSlider("Пульсация", "pulse", 0, 200, 100, "%")
+                    addSlider("Плотность частиц", "particles", 0, 150, 100, "%")
+                    addSlider("Цветовая палитра", "palette_hue", 0, 360, 190, "")
                     content.addView(TextView(this).apply {
                         text = "Ползунок цветового спектра меняет общую палитру сцены. Белые энергетические блики сохраняются."
                         textSize = 11f; setTextColor(Color.LTGRAY); setPadding(0, dp(5), 0, dp(8))
