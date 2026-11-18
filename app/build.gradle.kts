@@ -67,6 +67,7 @@ android {
     kotlinOptions { jvmTarget = "17" }
 }
 
+// Developer HUD 1.7.3: live visual tuning overlay, shared palette and saved profile.
 // Filament stays isolated in Debug until the renderer spike passes device tests.
 dependencies {
     debugImplementation("com.google.android.filament:filament-android:1.57.1")
