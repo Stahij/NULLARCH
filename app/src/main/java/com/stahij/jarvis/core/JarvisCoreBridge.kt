@@ -38,8 +38,8 @@ class JarvisCoreBridge(
     fun setQuality(quality: CoreQuality) = evaluate("JarvisCoreAPI.setQuality('${quality.value}')")
     fun setRotationEnabled(enabled: Boolean) = evaluate("JarvisCoreAPI.setRotationEnabled($enabled)")
     fun setAssistantState(state: AssistantState) = evaluate("JarvisCoreAPI.setState('${state.value}')")
-    fun setDeveloperSettings(core: Float, icon: Float, orbit: Float, speed: Float, intensity: Float, hue: Float) =
-        evaluate("JarvisCoreAPI.setDevSettings($core,$icon,$orbit,$speed,$intensity,$hue)")
+    fun setDeveloperSettings(core: Float, icon: Float, orbit: Float, speed: Float, intensity: Float, hue: Float, glow: Float, pulse: Float, particles: Float) =
+        evaluate("JarvisCoreAPI.setDevSettings($core,$icon,$orbit,$speed,$intensity,$hue,$glow,$pulse,$particles)")
 
     fun setNodes(apps: List<LauncherApp>) {
         val array = JSONArray()
