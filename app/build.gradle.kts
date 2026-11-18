@@ -12,8 +12,8 @@ android {
         applicationId = "com.stahij.jarvis.preview"
         minSdk = 26
         targetSdk = 35
-        versionCode = 47
-        versionName = "1.7.9"
+        versionCode = 48
+        versionName = "1.8.0"
 
         ndk {
             abiFilters += listOf("arm64-v8a")
@@ -70,7 +70,7 @@ android {
 // Developer HUD 1.7.3: live visual tuning overlay, shared palette and saved profile.
 // Filament stays isolated in Debug until the renderer spike passes device tests.
 // Visual effects 1.7.5: expanded halo, pulse breathing and particle field.
-// Plasma UI 1.7.9: circular embedded app marks, organic tapered bridges and stronger liquid surface deformation.
+// Plasma UI 1.8.0: smaller embedded app marks, volumetric droplets and solid organic bridge fusion.
 dependencies {
     debugImplementation("com.google.android.filament:filament-android:1.57.1")
 }
