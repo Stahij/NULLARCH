@@ -685,7 +685,7 @@
       // One continuous radial surface is solved around the core and every app node.
       // This replaces separate droplet spheres and proxy bridge cylinders.
       const metaballNodeData = new Float32Array(MAX_NODES * 4);
-      const metaballGeo = new THREE.SphereGeometry(2.75, 64, 48);
+      const metaballGeo = new THREE.SphereGeometry(4.0, 72, 56);
       const metaballMat = new THREE.ShaderMaterial({
         uniforms: {
           uTime: sharedUniforms.uTime,
@@ -695,13 +695,15 @@
           uNodeData: { value: metaballNodeData },
           uNodeCount: { value: 0 },
           uCoreRadius: { value: 0.68 },
-          uIconRadius: { value: 0.30 }
+          uIconRadius: { value: 0.30 },
+          uRayLimit: { value: 2.8 }
         },
         vertexShader: `
           uniform float uTime;
           uniform float uNodeCount;
           uniform float uCoreRadius;
           uniform float uIconRadius;
+          uniform float uRayLimit;
           uniform vec4 uNodeData[16];
           varying vec3 vSurfacePos;
           varying vec3 vNormalView;
@@ -730,7 +732,7 @@
           void main() {
             vec3 rayDir = normalize(position);
             float lo = 0.0;
-            float hi = 2.75;
+            float hi = uRayLimit;
 
             // Eleven bisection passes find the outer boundary of the unified field.
             for (int step = 0; step < 11; step++) {
@@ -1007,6 +1009,7 @@
 
       function updateOrbitalNodes(dt) {
         const count = Math.min(appNodes.length, MAX_NODES);
+        let metaballRayLimit = 2.6;
         glyphInstancedMesh.count = count;
         metaballMat.uniforms.uNodeCount.value = count;
         swarmMat.uniforms.uActiveNodeCount.value = count;
@@ -1038,7 +1041,8 @@
           const coreRadius = 0.95 * 0.76 * state.currentScale - 0.045;
           const iconRadius = 0.30 * state.devIconScale;
           const surfaceGap = Math.max(0.0, _pos.length() - (coreRadius + iconRadius));
-          const blend = Math.min(2.05, Math.max(0.72, surfaceGap * 2.0 + 0.50));
+          const blend = Math.min(2.4, Math.max(0.72, surfaceGap * 2.1 + 0.50));
+          metaballRayLimit = Math.max(metaballRayLimit, _pos.length() + iconRadius + 0.72);
           const dataOffset = i * 4;
           metaballNodeData[dataOffset] = _pos.x;
           metaballNodeData[dataOffset + 1] = _pos.y;
@@ -1053,6 +1057,7 @@
         metaballMat.uniforms.uCoreRadius.value = 0.95 * 0.76 * state.currentScale - 0.045;
         metaballMat.uniforms.uIconRadius.value = 0.30 * state.devIconScale;
         metaballMat.uniforms.uNodeData.value = metaballNodeData;
+        metaballMat.uniforms.uRayLimit.value = Math.min(3.95, metaballRayLimit);
         metaballMesh.visible = count > 0;
         glyphInstancedMesh.instanceMatrix.needsUpdate = true;
         glyphInstancedGeo.attributes.aHighlight.needsUpdate = true;
