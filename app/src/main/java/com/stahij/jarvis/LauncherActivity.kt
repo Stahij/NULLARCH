@@ -201,7 +201,7 @@ class LauncherActivity : Activity() {
             when (tab) {
                 "Ядро" -> {
                     addSlider("Размер ядра", "core_scale", 70, 140, 100, "%")
-                    addSlider("Пульсация / активность", "intensity", 40, 180, 100, "%")
+                    addSlider("Яркость ядра", "intensity", 40, 180, 100, "%")
                 }
                 "Иконки" -> addSlider("Размер иконок", "icon_scale", 60, 190, 100, "%")
                 "Орбиты" -> {
