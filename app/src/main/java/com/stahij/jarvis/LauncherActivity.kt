@@ -176,7 +176,10 @@ class LauncherActivity : Activity() {
             val label = TextView(this).apply { textSize = 13f; setTextColor(Color.WHITE); setPadding(0, dp(5), 0, 0) }
             content.addView(label)
             val seek = android.widget.SeekBar(this).apply {
-                if (key == "palette_hue") progressDrawable = GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, intArrayOf(Color.RED, Color.YELLOW, Color.GREEN, Color.CYAN, Color.BLUE, Color.MAGENTA, Color.RED)).apply { cornerRadius = dp(5).toFloat() }
+                if (key == "palette_hue") {
+                    background = GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, intArrayOf(Color.RED, Color.YELLOW, Color.GREEN, Color.CYAN, Color.BLUE, Color.MAGENTA, Color.RED)).apply { cornerRadius = dp(5).toFloat() }
+                    progressDrawable = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
+                }
                 this.max = max - min
                 progress = (prefs.getInt(key, default) - min).coerceIn(0, this.max)
             }
@@ -251,6 +254,18 @@ class LauncherActivity : Activity() {
                 Toast.makeText(this@LauncherActivity, "Параметры сброшены", Toast.LENGTH_SHORT).show()
             }
         }
+        val restore = TextView(this).apply {
+            text = "Восстановить"; textSize = 12f; setTextColor(Color.LTGRAY); setPadding(dp(10), dp(8), dp(10), dp(6))
+            setOnClickListener {
+                val keys = listOf("core_scale", "icon_scale", "orbit_scale", "orbit_speed", "intensity", "palette_hue", "glow", "pulse", "particles")
+                if (prefs.contains("profile_core_scale")) {
+                    keys.forEach { key -> if (prefs.contains("profile_$key")) prefs.edit().putInt(key, prefs.getInt("profile_$key", 100)).apply() }
+                    applySettings()
+                    workspaceRoot.removeView(overlay); developerOverlay = null; showDeveloperPanel()
+                    Toast.makeText(this@LauncherActivity, "Профиль восстановлен", Toast.LENGTH_SHORT).show()
+                } else Toast.makeText(this@LauncherActivity, "Сначала сохраните профиль", Toast.LENGTH_SHORT).show()
+            }
+        }
         val save = TextView(this).apply {
             text = "Сохранить профиль"; textSize = 12f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE)
             setPadding(dp(12), dp(8), dp(4), dp(6))
@@ -259,7 +274,7 @@ class LauncherActivity : Activity() {
                 Toast.makeText(this@LauncherActivity, "Профиль визуала сохранён", Toast.LENGTH_SHORT).show()
             }
         }
-        footer.addView(reset); footer.addView(save); panel.addView(footer)
+        footer.addView(reset); footer.addView(restore); footer.addView(save); panel.addView(footer)
         overlay.addView(panel, FrameLayout.LayoutParams(-1, (resources.displayMetrics.heightPixels * 0.42f).toInt(), Gravity.BOTTOM))
         workspaceRoot.addView(overlay, FrameLayout.LayoutParams(-1, -1))
         developerOverlay = overlay
