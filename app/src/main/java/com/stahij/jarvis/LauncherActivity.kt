@@ -114,9 +114,9 @@ class LauncherActivity : Activity() {
     private fun applySavedDeveloperSettings() {
         val p = getSharedPreferences("jarvis_developer_visuals", MODE_PRIVATE)
         coreView.bridge.setDeveloperSettings(
-            p.getFloat("core_scale", 1f), p.getFloat("icon_scale", 1f),
-            p.getFloat("orbit_scale", 1f), p.getFloat("orbit_speed", 1f),
-            p.getFloat("intensity", 1f), p.getFloat("hue", 0f)
+            p.getInt("core_scale", 100) / 100f, p.getInt("icon_scale", 100) / 100f,
+            p.getInt("orbit_scale", 100) / 100f, p.getInt("orbit_speed", 100) / 100f,
+            p.getInt("intensity", 100) / 100f, p.getInt("hue", 0).toFloat()
         )
     }
 
