@@ -70,7 +70,7 @@ android {
 // Developer HUD 1.7.3: live visual tuning overlay, shared palette and saved profile.
 // Filament stays isolated in Debug until the renderer spike passes device tests.
 // Visual effects 1.7.5: expanded halo, pulse breathing and particle field.
-// Plasma UI 1.7.8: instanced liquid app droplets and depth-aware animated bridges.
+// Plasma UI 1.7.8: instanced liquid app droplets, depth-aware animated bridges and stable transforms.
 dependencies {
     debugImplementation("com.google.android.filament:filament-android:1.57.1")
 }
