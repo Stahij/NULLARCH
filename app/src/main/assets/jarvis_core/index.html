@@ -782,11 +782,11 @@
             // and give a stable, genuinely merged metaball silhouette.
             float lo = 0.0;
             float hi = 1.10;
-            for (int step = 0; step < 7; step++) {
+            for (int iter = 0; iter < 7; iter++) {
               float mid = 0.5 * (lo + hi);
               float dCore = length(vec2(axial, mid)) - 0.95;
               float dIcon = length(vec2(axial - centerDistance, mid)) - 0.30;
-              float field = smin(dCore, dIcon, 0.94);
+              float field = smin(dCore, dIcon, 0.82);
               if (field > 0.0) hi = mid;
               else lo = mid;
             }
