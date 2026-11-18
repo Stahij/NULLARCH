@@ -130,6 +130,8 @@
         uPulseAmp:      { value: 0.032 },
         uHueShift:      { value: 0.0 },
         uPaletteColor:  { value: new THREE.Color('#00cfff') },
+        uDevGlow:       { value: 1.0 },
+        uDevParticles:  { value: 1.0 },
         uSurge:         { value: 0.0 },
         uSurgeDir:      { value: new THREE.Vector3(0.6, 0.7, 0.4).normalize() },
         uParticleRatio: { value: 0.75 },
@@ -281,7 +283,7 @@
             vec3 innerAzure = uPaletteColor * 0.34;
             vec3 col = mix(innerAzure, outerCyan, wisps);
 
-            float alpha = softHalo * (0.24 + wisps * 0.44) * uIntensity * (1.0 + uSurge * 0.25);
+            float alpha = softHalo * (0.24 + wisps * 0.44) * uIntensity * uDevGlow * (1.0 + uSurge * 0.25);
             gl_FragColor = vec4(col, clamp(alpha, 0.0, 0.85));
           }
         `
@@ -1040,7 +1042,8 @@
         }
 
         sharedUniforms.uTime.value = t;
-        sharedUniforms.uIntensity.value = state.currentIntensity * state.devIntensity;
+        sharedUniforms.uIntensity.value = state.currentIntensity * state.devIntensity * state.devPulse;
+        sharedUniforms.uParticleRatio.value = Math.min(1.0, sharedUniforms.uDevParticles.value * 0.75);
         sharedUniforms.uPulseAmp.value = state.currentPulseAmp;
         sharedUniforms.uHueShift.value = state.currentHueShift;
         sharedUniforms.uSurge.value = Math.sin(state.surgeValue * Math.PI);
@@ -1116,13 +1119,16 @@
             applyQualityTier(key);
           }
         },
-        setDevSettings(core, icon, orbit, speed, intensity, hue) {
+        setDevSettings(core, icon, orbit, speed, intensity, hue, glow, pulse, particles) {
           state.devCoreScale = Math.max(0.7, Math.min(1.4, Number(core) || 1));
           state.devIconScale = Math.max(0.6, Math.min(1.9, Number(icon) || 1));
           state.devOrbitScale = Math.max(0.7, Math.min(1.45, Number(orbit) || 1));
           state.devOrbitSpeed = Math.max(0, Math.min(2.5, Number(speed) || 0));
           state.devIntensity = Math.max(0.4, Math.min(1.8, Number(intensity) || 1));
           state.devHue = ((Number(hue) || 190) % 360 + 360) % 360;
+          state.devPulse = Math.max(0, Math.min(2, Number(pulse) || 1));
+          sharedUniforms.uDevGlow.value = Math.max(0, Math.min(2, Number(glow) || 0));
+          sharedUniforms.uDevParticles.value = Math.max(0, Math.min(1.5, Number(particles) || 0));
           sharedUniforms.uPaletteColor.value.setHSL(state.devHue / 360, 0.92, 0.56);
           glyphMat.uniforms.uIconScale.value = state.devIconScale;
           registerActivity();
