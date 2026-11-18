@@ -702,7 +702,7 @@
             float ripple = sin(position.x * 8.0 + uTime * 1.4)
                          * cos(position.y * 9.0 - uTime * 1.2)
                          * sin(position.z * 7.0 + uTime * 0.9);
-            p += normal * ripple * 0.012;
+            p += normal * ripple * 0.022;
             vec4 mv = modelViewMatrix * instanceMatrix * vec4(p, 1.0);
             vNormalView = normalize(mat3(modelViewMatrix * instanceMatrix) * normal);
             vViewPos = -mv.xyz;
@@ -1046,8 +1046,8 @@
           // Connect the core surface to the near edge of each droplet.
           // Bridges behind the core are naturally hidden by the scene depth buffer.
           _bridgeDir.copy(_pos).normalize();
-          _bridgeStart.copy(_bridgeDir).multiplyScalar(0.70);
-          _bridgeEnd.copy(_pos).addScaledVector(_bridgeDir, -0.235);
+          _bridgeStart.copy(_bridgeDir).multiplyScalar(0.65);
+          _bridgeEnd.copy(_pos).addScaledVector(_bridgeDir, -0.28);
           const bridgeLength = _bridgeStart.distanceTo(_bridgeEnd);
           if (bridgeLength > 0.025) {
             _bridgeAxis.copy(_bridgeEnd).sub(_bridgeStart).normalize();
