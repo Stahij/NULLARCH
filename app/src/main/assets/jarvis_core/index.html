@@ -740,7 +740,8 @@
 
       // DRAW CALL 5B: ORGANIC PLASMA BRIDGES — slim animated liquid filaments.
       // Their depth is real: the central core naturally occludes bridges on the far side.
-      const plasmaBridgeGeo = new THREE.CylinderGeometry(0.032, 0.052, 1.0, 10, 8, true);
+      // High-segment tapered connector; shader flares both ends into the core and droplet.
+      const plasmaBridgeGeo = new THREE.CylinderGeometry(0.026, 0.026, 1.0, 16, 28, true);
       const plasmaBridgeMat = new THREE.ShaderMaterial({
         transparent: true,
         depthTest: true,
@@ -752,13 +753,23 @@
           uIntensity: sharedUniforms.uIntensity
         },
         vertexShader: `
+          uniform float uTime;
           attribute mat4 instanceMatrix;
           varying vec2 vUv;
           varying vec3 vNormalView;
           varying vec3 vViewPos;
           void main() {
             vUv = uv;
-            vec4 mv = modelViewMatrix * instanceMatrix * vec4(position, 1.0);
+            vec3 p = position;
+            float endWeight = 1.0 - smoothstep(0.0, 0.24, min(uv.y, 1.0 - uv.y));
+            float liquidPulse = 0.5 + 0.5 * sin(uTime * 2.1 + uv.y * 8.0);
+            float flare = 1.0 + endWeight * 2.15;
+            p.xz *= flare * (1.0 + 0.10 * sin(uTime * 2.8 + uv.y * 13.0));
+            float sway = sin(uv.y * 3.14159 + uTime * 1.4) * 0.035
+                       + sin(uv.y * 9.0 - uTime * 1.8) * 0.012;
+            p.x += sway;
+            p.z += cos(uv.y * 6.28318 - uTime * 1.1) * 0.012;
+            vec4 mv = modelViewMatrix * instanceMatrix * vec4(p, 1.0);
             vNormalView = normalize(mat3(modelViewMatrix * instanceMatrix) * normal);
             vViewPos = -mv.xyz;
             gl_Position = projectionMatrix * mv;
@@ -773,16 +784,19 @@
           varying vec3 vNormalView;
           varying vec3 vViewPos;
           void main() {
-            float flow = sin(vUv.y * 17.0 - uTime * 3.0
-                         + sin(vUv.y * 7.0 + uTime * 1.3) * 1.45
-                         + vUv.x * 5.0);
-            float filament = smoothstep(0.12, 0.92, flow * 0.5 + 0.5);
+            float flowA = sin(vUv.y * 18.0 - uTime * 2.8
+                           + sin(vUv.y * 8.0 + uTime * 1.2) * 1.25);
+            float flowB = cos(vUv.y * 31.0 + uTime * 1.7 + vUv.x * 6.28318);
+            float filament = pow(clamp(1.0 - abs(flowA * 0.62 + flowB * 0.18), 0.0, 1.0), 2.4);
             float fresnel = pow(1.0 - abs(dot(normalize(vNormalView), normalize(vViewPos))), 2.0);
-            float pulse = 0.78 + 0.22 * sin(uTime * 2.4 + vUv.y * 5.0);
-            vec3 col = mix(uPaletteColor * 0.38, uPaletteColor * 1.22, filament);
-            col = mix(col, vec3(0.90, 0.98, 1.0), fresnel * 0.55 + filament * 0.24);
-            float alpha = (0.10 + filament * 0.34 + fresnel * 0.22) * pulse * uIntensity;
-            gl_FragColor = vec4(col, clamp(alpha, 0.0, 0.76));
+            float endGlow = 1.0 - smoothstep(0.0, 0.22, min(vUv.y, 1.0 - vUv.y));
+            float pulse = 0.82 + 0.18 * sin(uTime * 2.2 + vUv.y * 5.0);
+            vec3 deep = uPaletteColor * 0.22;
+            vec3 hot = mix(uPaletteColor * 1.12, vec3(1.0, 0.91, 0.94), filament * 0.62 + fresnel * 0.25);
+            vec3 col = mix(deep, hot, 0.35 + filament * 0.65);
+            col += uPaletteColor * endGlow * 0.45;
+            float alpha = (0.13 + filament * 0.39 + fresnel * 0.20 + endGlow * 0.16) * pulse * uIntensity;
+            gl_FragColor = vec4(col, clamp(alpha, 0.0, 0.84));
           }
         `
       });
@@ -1374,13 +1388,27 @@
               ctx.save();
               ctx.clearRect(x, y, cell, cell);
 
-              // Free-floating native app artwork: no circular HUD button or heavy rim.
-              // A restrained soft shadow gives the icon depth without tinting its colors.
+              // Native logo is embedded into the plasma droplet, not shown as a square sticker.
+              // Circular alpha mask removes launcher-icon tile corners while preserving artwork colors.
               ctx.save();
-              ctx.shadowColor = 'rgba(12, 17, 34, 0.72)';
-              ctx.shadowBlur = 13;
-              ctx.shadowOffsetY = 5;
-              ctx.drawImage(image, x + 20, y + 5, 88, 88);
+              ctx.beginPath();
+              ctx.arc(x + 64, y + 47, 36, 0, Math.PI * 2);
+              ctx.clip();
+              ctx.shadowColor = 'rgba(8, 12, 28, 0.62)';
+              ctx.shadowBlur = 10;
+              ctx.shadowOffsetY = 2;
+              ctx.drawImage(image, x + 28, y + 11, 72, 72);
+              ctx.restore();
+
+              // A fine liquid-glass edge blends the icon into its plasma shell.
+              ctx.save();
+              ctx.beginPath();
+              ctx.arc(x + 64, y + 47, 36.5, 0, Math.PI * 2);
+              ctx.strokeStyle = 'rgba(220, 250, 255, 0.22)';
+              ctx.lineWidth = 1.4;
+              ctx.shadowColor = 'rgba(70, 205, 255, 0.34)';
+              ctx.shadowBlur = 8;
+              ctx.stroke();
               ctx.restore();
 
               // Very subtle reflected light from the central plasma core.
