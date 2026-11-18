@@ -84,9 +84,11 @@ class LauncherActivity : Activity() {
             onOpenSettings = { showCoreMenu() },
             onOpenDrawer = { showAppDrawer() },
             onForwardTouch = { event -> coreView.dispatchPointerEvent(event) },
-            onAppsChanged = { apps -> coreView.bridge.setNodes(apps) }
+            onAppsChanged = { apps -> coreView.bridge.setNodes(apps) },
+            onOpenDeveloperPanel = { showDeveloperPanel() }
         )
         coreView.bridge.setNodes(workspace.getCoreApps())
+        applySavedDeveloperSettings()
         coreView.bridge.setRotationEnabled(
             getSharedPreferences("jarvis_launcher_gestures", MODE_PRIVATE).getBoolean("core_rotate", true)
         )
@@ -105,6 +107,126 @@ class LauncherActivity : Activity() {
                 .setClassName(app.packageName, app.className))
         } catch (_: Exception) {
             Toast.makeText(this, "Не удалось открыть ${app.label}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+
+    private fun applySavedDeveloperSettings() {
+        val p = getSharedPreferences("jarvis_developer_visuals", MODE_PRIVATE)
+        coreView.bridge.setDeveloperSettings(
+            p.getFloat("core_scale", 1f), p.getFloat("icon_scale", 1f),
+            p.getFloat("orbit_scale", 1f), p.getFloat("orbit_speed", 1f),
+            p.getFloat("intensity", 1f), p.getFloat("hue", 0f)
+        )
+    }
+
+    private fun showDeveloperPanel() {
+        val prefs = getSharedPreferences("jarvis_developer_visuals", MODE_PRIVATE)
+        val dialog = android.app.Dialog(this)
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(18), dp(20), dp(16))
+            setBackground(GradientDrawable().apply {
+                setColor(Color.rgb(5, 14, 29))
+                cornerRadius = dp(24).toFloat()
+                setStroke(dp(1), Color.rgb(35, 119, 158))
+            })
+        }
+        panel.addView(TextView(this).apply {
+            text = "JARVIS • DEV VISUALS"
+            textSize = 18f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(cyan)
+        })
+        panel.addView(TextView(this).apply {
+            text = "Изменения применяются сразу к настоящему ядру."
+            textSize = 12f
+            setTextColor(Color.LTGRAY)
+            setPadding(0, dp(4), 0, dp(12))
+        })
+        val scroll = android.widget.ScrollView(this)
+        val controls = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        scroll.addView(controls)
+        panel.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
+
+        fun addSlider(title: String, key: String, minValue: Int, maxValue: Int, defaultValue: Int, suffix: String, apply: (Float) -> Unit) {
+            val label = TextView(this).apply {
+                textSize = 14f
+                setTextColor(Color.WHITE)
+                setPadding(0, dp(9), 0, 0)
+            }
+            controls.addView(label)
+            val seek = android.widget.SeekBar(this).apply {
+                max = maxValue - minValue
+                progress = (prefs.getInt(key, defaultValue) - minValue).coerceIn(0, max)
+            }
+            fun update(value: Int, persist: Boolean) {
+                label.text = "$title: $value$suffix"
+                val normalized = value.toFloat()
+                apply(normalized)
+                if (persist) prefs.edit().putInt(key, value).apply()
+            }
+            update(seek.progress + minValue, false)
+            seek.setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(bar: android.widget.SeekBar?, progress: Int, fromUser: Boolean) {
+                    update(progress + minValue, fromUser)
+                }
+                override fun onStartTrackingTouch(bar: android.widget.SeekBar?) = Unit
+                override fun onStopTrackingTouch(bar: android.widget.SeekBar?) = Unit
+            })
+            controls.addView(seek)
+        }
+        fun send() {
+            coreView.bridge.setDeveloperSettings(
+                prefs.getInt("core_scale", 100) / 100f,
+                prefs.getInt("icon_scale", 100) / 100f,
+                prefs.getInt("orbit_scale", 100) / 100f,
+                prefs.getInt("orbit_speed", 100) / 100f,
+                prefs.getInt("intensity", 100) / 100f,
+                prefs.getInt("hue", 0).toFloat()
+            )
+        }
+        addSlider("Размер ядра", "core_scale", 70, 140, 100, "%") { send() }
+        addSlider("Размер иконок", "icon_scale", 60, 190, 100, "%") { send() }
+        addSlider("Радиус орбит", "orbit_scale", 70, 145, 100, "%") { send() }
+        addSlider("Скорость орбит", "orbit_speed", 0, 250, 100, "%") { send() }
+        addSlider("Яркость / активность", "intensity", 40, 180, 100, "%") { send() }
+        addSlider("Оттенок", "hue", 0, 360, 0, "°") { send() }
+
+        val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.END }
+        val reset = TextView(this).apply {
+            text = "Сбросить"
+            textSize = 14f
+            setTextColor(cyan)
+            gravity = Gravity.CENTER
+            setPadding(dp(14), dp(12), dp(14), dp(8))
+            setOnClickListener {
+                prefs.edit().clear().apply()
+                dialog.dismiss()
+                showDeveloperPanel()
+                applySavedDeveloperSettings()
+            }
+        }
+        val close = TextView(this).apply {
+            text = "Готово"
+            textSize = 14f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER
+            setPadding(dp(14), dp(12), dp(14), dp(8))
+            setOnClickListener { dialog.dismiss() }
+        }
+        actions.addView(reset)
+        actions.addView(close)
+        panel.addView(actions)
+        dialog.setContentView(panel)
+        dialog.show()
+        dialog.window?.apply {
+            setBackgroundDrawableResource(android.R.color.transparent)
+            setLayout((resources.displayMetrics.widthPixels * .92f).toInt(), (resources.displayMetrics.heightPixels * .78f).toInt())
+            setGravity(Gravity.CENTER)
+            addFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+            attributes = attributes.apply { dimAmount = .72f }
         }
     }
 
