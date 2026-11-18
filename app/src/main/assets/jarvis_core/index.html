@@ -681,6 +681,114 @@
       const MAX_NODES = 16;
       const PARTICLES_PER_NODE = 14;
 
+      // DRAW CALL 5A: LIQUID PLASMA DROPLETS — one compact plasma body per app node.
+      // Native app artwork remains a crisp billboard layered in front of each droplet.
+      const plasmaDropGeo = new THREE.SphereGeometry(0.245, 16, 12);
+      const plasmaDropMat = new THREE.ShaderMaterial({
+        uniforms: {
+          uTime: sharedUniforms.uTime,
+          uPaletteColor: sharedUniforms.uPaletteColor,
+          uIntensity: sharedUniforms.uIntensity
+        },
+        vertexShader: `
+          uniform float uTime;
+          varying vec3 vLocal;
+          varying vec3 vNormalView;
+          varying vec3 vViewPos;
+          void main() {
+            vLocal = position;
+            vec3 p = position;
+            float ripple = sin(position.x * 8.0 + uTime * 1.4)
+                         * cos(position.y * 9.0 - uTime * 1.2)
+                         * sin(position.z * 7.0 + uTime * 0.9);
+            p += normal * ripple * 0.012;
+            vec4 mv = modelViewMatrix * vec4(p, 1.0);
+            vNormalView = normalize(normalMatrix * normal);
+            vViewPos = -mv.xyz;
+            gl_Position = projectionMatrix * mv;
+          }
+        `,
+        fragmentShader: `
+          precision mediump float;
+          uniform float uTime;
+          uniform float uIntensity;
+          uniform vec3 uPaletteColor;
+          varying vec3 vLocal;
+          varying vec3 vNormalView;
+          varying vec3 vViewPos;
+          void main() {
+            vec3 N = normalize(vNormalView);
+            vec3 V = normalize(vViewPos);
+            float fresnel = pow(1.0 - max(dot(N, V), 0.0), 2.0);
+            float flowA = sin(vLocal.x * 13.0 + uTime * 1.7 + sin(vLocal.y * 11.0 - uTime) * 1.2);
+            float flowB = cos(vLocal.z * 15.0 - uTime * 1.35 + flowA * 0.8);
+            float filament = pow(clamp(1.0 - abs(flowA * 0.58 + flowB * 0.42), 0.0, 1.0), 2.8);
+            vec3 deep = uPaletteColor * 0.20;
+            vec3 body = uPaletteColor * (0.58 + filament * 0.48);
+            vec3 col = mix(deep, body, smoothstep(-0.65, 0.65, vLocal.y));
+            col = mix(col, vec3(0.88, 0.97, 1.0), filament * 0.78 + fresnel * 0.22);
+            col += uPaletteColor * fresnel * 0.55;
+            gl_FragColor = vec4(col * uIntensity, 1.0);
+          }
+        `
+      });
+      const plasmaDropMesh = new THREE.InstancedMesh(plasmaDropGeo, plasmaDropMat, MAX_NODES);
+      plasmaDropMesh.count = appNodes.length;
+      plasmaDropMesh.frustumCulled = false;
+      coreRoot.add(plasmaDropMesh);
+
+      // DRAW CALL 5B: ORGANIC PLASMA BRIDGES — slim animated liquid filaments.
+      // Their depth is real: the central core naturally occludes bridges on the far side.
+      const plasmaBridgeGeo = new THREE.CylinderGeometry(0.032, 0.052, 1.0, 10, 8, true);
+      const plasmaBridgeMat = new THREE.ShaderMaterial({
+        transparent: true,
+        depthTest: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        uniforms: {
+          uTime: sharedUniforms.uTime,
+          uPaletteColor: sharedUniforms.uPaletteColor,
+          uIntensity: sharedUniforms.uIntensity
+        },
+        vertexShader: `
+          varying vec2 vUv;
+          varying vec3 vNormalView;
+          varying vec3 vViewPos;
+          void main() {
+            vUv = uv;
+            vec4 mv = modelViewMatrix * vec4(position, 1.0);
+            vNormalView = normalize(normalMatrix * normal);
+            vViewPos = -mv.xyz;
+            gl_Position = projectionMatrix * mv;
+          }
+        `,
+        fragmentShader: `
+          precision mediump float;
+          uniform float uTime;
+          uniform float uIntensity;
+          uniform vec3 uPaletteColor;
+          varying vec2 vUv;
+          varying vec3 vNormalView;
+          varying vec3 vViewPos;
+          void main() {
+            float flow = sin(vUv.y * 17.0 - uTime * 3.0
+                         + sin(vUv.y * 7.0 + uTime * 1.3) * 1.45
+                         + vUv.x * 5.0);
+            float filament = smoothstep(0.12, 0.92, flow * 0.5 + 0.5);
+            float fresnel = pow(1.0 - abs(dot(normalize(vNormalView), normalize(vViewPos))), 2.0);
+            float pulse = 0.78 + 0.22 * sin(uTime * 2.4 + vUv.y * 5.0);
+            vec3 col = mix(uPaletteColor * 0.38, uPaletteColor * 1.22, filament);
+            col = mix(col, vec3(0.90, 0.98, 1.0), fresnel * 0.55 + filament * 0.24);
+            float alpha = (0.10 + filament * 0.34 + fresnel * 0.22) * pulse * uIntensity;
+            gl_FragColor = vec4(col, clamp(alpha, 0.0, 0.76));
+          }
+        `
+      });
+      const plasmaBridgeMesh = new THREE.InstancedMesh(plasmaBridgeGeo, plasmaBridgeMat, MAX_NODES);
+      plasmaBridgeMesh.count = appNodes.length;
+      plasmaBridgeMesh.frustumCulled = false;
+      coreRoot.add(plasmaBridgeMesh);
+
       // DRAW CALL 5: Плоскости глифов в центре каждого узла (InstancedMesh)
       const glyphPlaneGeo = new THREE.PlaneGeometry(0.36, 0.36);
       const glyphInstancedGeo = new THREE.InstancedBufferGeometry().copy(glyphPlaneGeo);
@@ -722,6 +830,8 @@
             // Всегда поворачиваем глиф лицом к камере (billboard) с сохранением 3D-позиции инстанса
             vec4 worldCenter = modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
             vec4 mvCenter = viewMatrix * worldCenter;
+            // Lift the flat native logo just in front of its 3D plasma droplet.
+            mvCenter.z += 0.255;
             float scale = 1.0 + aHighlight * 0.28;
             mvCenter.xy += position.xy * scale * uIconScale;
 
@@ -749,6 +859,7 @@
       });
 
       const glyphInstancedMesh = new THREE.InstancedMesh(glyphInstancedGeo, glyphMat, MAX_NODES);
+      // Logos render after their plasma droplets so original artwork stays crisp and readable.
       glyphInstancedMesh.count = appNodes.length;
       glyphInstancedMesh.frustumCulled = false;
       coreRoot.add(glyphInstancedMesh);
@@ -880,6 +991,8 @@
       function updateOrbitalNodes(dt) {
         const count = Math.min(appNodes.length, MAX_NODES);
         glyphInstancedMesh.count = count;
+        plasmaDropMesh.count = count;
+        plasmaBridgeMesh.count = count;
         swarmMat.uniforms.uActiveNodeCount.value = count;
 
         if (state.activeNodePulse > 0) {
@@ -903,12 +1016,37 @@
           _dummy.updateMatrix();
           glyphInstancedMesh.setMatrixAt(i, _dummy.matrix);
 
+          // Plasma droplet follows the exact same orbital transform as the native logo.
+          _dummy.scale.setScalar(1.0);
+          _dummy.updateMatrix();
+          plasmaDropMesh.setMatrixAt(i, _dummy.matrix);
+
+          // Connect the core surface to the near edge of each droplet.
+          // Bridges behind the core are naturally hidden by the scene depth buffer.
+          const bridgeDir = _pos.clone().normalize();
+          const bridgeStart = bridgeDir.clone().multiplyScalar(0.70);
+          const bridgeEnd = _pos.clone().addScaledVector(bridgeDir, -0.235);
+          const bridgeLength = bridgeStart.distanceTo(bridgeEnd);
+          if (bridgeLength > 0.025) {
+            const bridgeAxis = bridgeEnd.clone().sub(bridgeStart).normalize();
+            _dummy.position.copy(bridgeStart).add(bridgeEnd).multiplyScalar(0.5);
+            _dummy.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), bridgeAxis);
+            _dummy.scale.set(1.0, bridgeLength, 1.0);
+          } else {
+            _dummy.position.copy(_pos);
+            _dummy.scale.set(0.0, 0.0, 0.0);
+          }
+          _dummy.updateMatrix();
+          plasmaBridgeMesh.setMatrixAt(i, _dummy.matrix);
+
           nodeCentersUniform[i * 4]     = _pos.x;
           nodeCentersUniform[i * 4 + 1] = _pos.y;
           nodeCentersUniform[i * 4 + 2] = _pos.z;
           nodeCentersUniform[i * 4 + 3] = hl;
         }
         glyphInstancedMesh.instanceMatrix.needsUpdate = true;
+        plasmaDropMesh.instanceMatrix.needsUpdate = true;
+        plasmaBridgeMesh.instanceMatrix.needsUpdate = true;
         glyphInstancedGeo.attributes.aHighlight.needsUpdate = true;
       }
 
