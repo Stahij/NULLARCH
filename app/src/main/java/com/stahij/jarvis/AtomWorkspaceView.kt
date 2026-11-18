@@ -38,7 +38,8 @@ class AtomWorkspaceView(
     private val onOpenSettings: () -> Unit,
     private val onOpenDrawer: () -> Unit,
     private val onForwardTouch: (MotionEvent) -> Unit,
-    private val onAppsChanged: (List<LauncherApp>) -> Unit
+    private val onAppsChanged: (List<LauncherApp>) -> Unit,
+    private val onOpenDeveloperPanel: () -> Unit
 ) : View(context) {
     private data class OrbitalItem(
         val app: LauncherApp,
@@ -79,6 +80,9 @@ class AtomWorkspaceView(
     private var forwardCoreTouch = true
     private var touchStartedInPageStrip = false
     private var touchStartedInDrawerZone = false
+    private var touchStartedInDeveloperCorner = false
+    private var developerCornerTapCount = 0
+    private var developerCornerTapStartedAt = 0L
     private var gesturePageSwipe = true
     private var gestureDrawerSwipe = true
     private var gestureCoreTap = true
@@ -385,9 +389,10 @@ class AtomWorkspaceView(
                 downY = event.y
                 touchStartedInDrawerZone = gestureDrawerSwipe && downX <= 112f * density && downY >= height - 176f * density
                 touchStartedInPageStrip = gesturePageSwipe && downY >= height - 76f * density && !touchStartedInDrawerZone
-                forwardCoreTouch = !touchStartedInPageStrip && !touchStartedInDrawerZone
+                touchStartedInDeveloperCorner = downX >= width - 64f * density && downY <= 64f * density
+                forwardCoreTouch = !touchStartedInPageStrip && !touchStartedInDrawerZone && !touchStartedInDeveloperCorner
                 if (forwardCoreTouch) onForwardTouch(event)
-                selected = items.firstOrNull { it.page == page && it.rect.contains(event.x, event.y) }
+                selected = if (touchStartedInDeveloperCorner) null else items.firstOrNull { it.page == page && it.rect.contains(event.x, event.y) }
                 dragging = false
                 if (selected == null) gestureDetector.onTouchEvent(event)
                 return true
@@ -422,7 +427,18 @@ class AtomWorkspaceView(
                     val horizontalSwipe = gesturePageSwipe && touchStartedInPageStrip && abs(dx) > 55f * density && abs(dx) > abs(dy)
                     val verticalSwipe = gestureDrawerSwipe && touchStartedInDrawerZone && dy < -55f * density &&
                         abs(dy) > abs(dx)
+                    val developerTap = touchStartedInDeveloperCorner && abs(dx) + abs(dy) < 18f * density
                     when {
+                        developerTap -> {
+                            val now = SystemClock.elapsedRealtime()
+                            if (now - developerCornerTapStartedAt > 3500L) developerCornerTapCount = 0
+                            developerCornerTapStartedAt = now
+                            developerCornerTapCount++
+                            if (developerCornerTapCount >= 5) {
+                                developerCornerTapCount = 0
+                                onOpenDeveloperPanel()
+                            }
+                        }
                         horizontalSwipe -> changePage(if (dx < 0f) 1 else -1)
                         verticalSwipe -> onOpenDrawer()
                         else -> gestureDetector.onTouchEvent(event)
@@ -436,6 +452,7 @@ class AtomWorkspaceView(
                 forwardCoreTouch = true
                 touchStartedInPageStrip = false
                 touchStartedInDrawerZone = false
+                touchStartedInDeveloperCorner = false
                 return true
             }
             MotionEvent.ACTION_CANCEL -> {
@@ -446,6 +463,7 @@ class AtomWorkspaceView(
                 forwardCoreTouch = true
                 touchStartedInPageStrip = false
                 touchStartedInDrawerZone = false
+                touchStartedInDeveloperCorner = false
                 return true
             }
         }
