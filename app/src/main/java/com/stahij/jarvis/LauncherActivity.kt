@@ -218,7 +218,7 @@ class LauncherActivity : Activity() {
                         text = "Сохранить текущий профиль"; textSize = 13f; setTextColor(cyan)
                         setPadding(0, dp(10), 0, dp(10))
                         setOnClickListener {
-                            prefs.edit().putBoolean("profile_saved", true).apply()
+                            listOf("core_scale", "icon_scale", "orbit_scale", "orbit_speed", "intensity", "palette_hue", "glow", "pulse", "particles").forEach { key -> prefs.edit().putInt("profile_$key", prefs.getInt(key, when (key) { "palette_hue" -> 190; else -> 100 })).apply() }
                             Toast.makeText(this@LauncherActivity, "Профиль визуала сохранён", Toast.LENGTH_SHORT).show()
                         }
                     }
@@ -252,11 +252,11 @@ class LauncherActivity : Activity() {
             }
         }
         val save = TextView(this).apply {
-            text = "Сохранить"; textSize = 12f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE)
+            text = "Сохранить профиль"; textSize = 12f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE)
             setPadding(dp(12), dp(8), dp(4), dp(6))
             setOnClickListener {
-                prefs.edit().putBoolean("profile_saved", true).apply()
-                Toast.makeText(this@LauncherActivity, "Настройки сохранены", Toast.LENGTH_SHORT).show()
+                listOf("core_scale", "icon_scale", "orbit_scale", "orbit_speed", "intensity", "palette_hue", "glow", "pulse", "particles").forEach { key -> prefs.edit().putInt("profile_$key", prefs.getInt(key, if (key == "palette_hue") 190 else 100)).apply() }
+                Toast.makeText(this@LauncherActivity, "Профиль визуала сохранён", Toast.LENGTH_SHORT).show()
             }
         }
         footer.addView(reset); footer.addView(save); panel.addView(footer)
