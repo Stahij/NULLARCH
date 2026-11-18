@@ -1045,9 +1045,9 @@
         }
 
         sharedUniforms.uTime.value = t;
-        sharedUniforms.uIntensity.value = state.currentIntensity * state.devIntensity * state.devPulse;
+        sharedUniforms.uIntensity.value = state.currentIntensity * state.devIntensity;
         sharedUniforms.uParticleRatio.value = Math.min(1.0, sharedUniforms.uDevParticles.value * 0.75);
-        sharedUniforms.uPulseAmp.value = state.currentPulseAmp;
+        sharedUniforms.uPulseAmp.value = state.currentPulseAmp * state.devPulse;
         sharedUniforms.uHueShift.value = state.currentHueShift;
         sharedUniforms.uSurge.value = Math.sin(state.surgeValue * Math.PI);
 
