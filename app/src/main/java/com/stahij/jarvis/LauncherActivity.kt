@@ -82,7 +82,8 @@ class LauncherActivity : Activity() {
             onOpenSettings = { showCoreMenu() },
             onOpenDrawer = { showAppDrawer() },
             onOpenLab = { showCoreLab() },
-            onAppOptions = { showAppOptions(it) }
+            onAppOptions = { showAppOptions(it) },
+            onRotateCore = { dx, dy -> coreView.bridge.rotateCore(dx, dy) }
         )
         val root = FrameLayout(this).apply {
             setBackgroundColor(Color.rgb(3, 8, 20))
@@ -93,37 +94,122 @@ class LauncherActivity : Activity() {
     }
 
     private fun showCoreLab() {
-        val panel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(22), dp(18), dp(22), dp(12)) }
-        val scroll = android.widget.ScrollView(this).apply { addView(panel) }
-        val labels = listOf("Размер ядра", "Яркость ядра", "Интенсивность ядра", "Размер иконок", "Масштаб орбит", "Цветовая палитра", "Свечение")
-        val defaults = intArrayOf(50, 70, 70, 50, 50, 50, 65)
-        val bars = mutableListOf<android.widget.SeekBar>()
-        labels.forEachIndexed { index, label ->
-            panel.addView(TextView(this).apply { text = label; textSize = 14f; setTextColor(Color.WHITE); setPadding(0, dp(10), 0, 0) })
-            val bar = android.widget.SeekBar(this).apply { max = 100; progress = defaults[index] }
-            bars.add(bar)
-            panel.addView(bar, LinearLayout.LayoutParams(-1, dp(42)))
+        val dialog = android.app.Dialog(this)
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), dp(12), dp(18), dp(12))
+            background = GradientDrawable().apply {
+                setColor(Color.rgb(7, 17, 32))
+                cornerRadii = floatArrayOf(dp(22).toFloat(), dp(22).toFloat(), dp(22).toFloat(), dp(22).toFloat(), 0f, 0f, 0f, 0f)
+                setStroke(dp(1), Color.rgb(35, 105, 139))
+            }
         }
+        val header = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        header.addView(TextView(this).apply {
+            text = "CORE LAB"; textSize = 15f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE)
+        }, LinearLayout.LayoutParams(0, dp(34), 1f))
+        header.addView(TextView(this).apply {
+            text = "ГОТОВО"; textSize = 12f; typeface = Typeface.DEFAULT_BOLD; setTextColor(cyan); gravity = Gravity.CENTER
+            setOnClickListener { dialog.dismiss() }
+        }, LinearLayout.LayoutParams(dp(72), dp(34)))
+        panel.addView(header)
+
+        val content = android.widget.ScrollView(this)
+        val controls = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        content.addView(controls)
+        panel.addView(content, LinearLayout.LayoutParams(-1, 0, 1f))
+
+        val labels = listOf("Размер ядра", "Яркость ядра", "Интенсивность ядра", "Размер иконок", "Масштаб орбит", "Свечение")
+        val defaults = intArrayOf(500, 700, 700, 500, 500, 650)
+        val bars = mutableListOf<android.widget.SeekBar>()
+        var selectedHue = 0.56f
         fun apply() {
             coreView.bridge.setVisualSettings(
-                .75f + bars[0].progress / 100f * .65f,
-                .45f + bars[1].progress / 100f * .9f,
-                .45f + bars[2].progress / 100f * 1.25f,
-                (bars[5].progress / 100f - .5f) * .7f,
-                .35f + bars[6].progress / 100f * 1.4f
+                .65f + bars[0].progress / 1000f * .75f,
+                .25f + bars[1].progress / 1000f * 1.25f,
+                .25f + bars[2].progress / 1000f * 1.45f,
+                selectedHue,
+                .25f + bars[5].progress / 1000f * 1.5f
             )
-            workspace.setLabIconScale(.65f + bars[3].progress / 100f * .85f)
-            workspace.setLabOrbitScale(.65f + bars[4].progress / 100f * .8f)
+            workspace.setLabIconScale(.65f + bars[3].progress / 1000f * .85f)
+            workspace.setLabOrbitScale(.65f + bars[4].progress / 1000f * .8f)
         }
-        bars.forEach { it.setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: android.widget.SeekBar?, progress: Int, fromUser: Boolean) { apply() }
-            override fun onStartTrackingTouch(seekBar: android.widget.SeekBar?) = Unit
-            override fun onStopTrackingTouch(seekBar: android.widget.SeekBar?) = Unit
-        }) }
-        AlertDialog.Builder(this).setTitle("NULLARCH · Core Lab")
-            .setView(scroll).setPositiveButton("Готово", null)
-            .setNeutralButton("Сбросить") { _, _ -> bars.forEachIndexed { i, b -> b.progress = defaults[i] }; apply() }
-            .show()
+        labels.forEachIndexed { index, label ->
+            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+            row.addView(TextView(this).apply { text = label; textSize = 12f; setTextColor(Color.rgb(210, 228, 241)) },
+                LinearLayout.LayoutParams(0, dp(28), 1f))
+            val value = TextView(this).apply { text = "${defaults[index] / 10}%"; textSize = 11f; setTextColor(cyan) }
+            row.addView(value)
+            controls.addView(row)
+            val bar = android.widget.SeekBar(this).apply { max = 1000; progress = defaults[index] }
+            bar.setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: android.widget.SeekBar?, progress: Int, fromUser: Boolean) {
+                    value.text = "${progress / 10}%"; apply()
+                }
+                override fun onStartTrackingTouch(seekBar: android.widget.SeekBar?) = Unit
+                override fun onStopTrackingTouch(seekBar: android.widget.SeekBar?) = Unit
+            })
+            bars.add(bar)
+            controls.addView(bar, LinearLayout.LayoutParams(-1, dp(34)))
+        }
+
+        controls.addView(TextView(this).apply {
+            text = "ЦВЕТ И ОТТЕНОК"; textSize = 11f; typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.rgb(170, 205, 225)); setPadding(0, dp(5), 0, dp(5))
+        })
+        val palette = object : View(this) {
+            private val p = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+            override fun onDraw(canvas: android.graphics.Canvas) {
+                super.onDraw(canvas)
+                val rows = 4; val cols = 48
+                val cellW = width.toFloat() / cols; val cellH = height.toFloat() / rows
+                for (y in 0 until rows) for (x in 0 until cols) {
+                    val hue = x.toFloat() / (cols - 1) * 360f
+                    val sat = 1f - y * .22f; val value = 1f - y * .12f
+                    p.color = Color.HSVToColor(floatArrayOf(hue, sat, value))
+                    canvas.drawRect(x * cellW, y * cellH, (x + 1) * cellW + 1f, (y + 1) * cellH + 1f, p)
+                }
+                val markerX = selectedHue * width
+                p.color = Color.WHITE; p.style = android.graphics.Paint.Style.STROKE; p.strokeWidth = dp(2).toFloat()
+                canvas.drawRect(markerX - dp(3), 0f, markerX + dp(3), height.toFloat(), p)
+                p.style = android.graphics.Paint.Style.FILL
+            }
+            override fun onTouchEvent(event: android.view.MotionEvent): Boolean {
+                if (event.action == android.view.MotionEvent.ACTION_DOWN || event.action == android.view.MotionEvent.ACTION_MOVE) {
+                    selectedHue = (event.x / width.coerceAtLeast(1)).coerceIn(0f, 1f)
+                    invalidate(); apply(); return true
+                }
+                return true
+            }
+        }
+        controls.addView(palette, LinearLayout.LayoutParams(-1, dp(76)))
+        controls.addView(TextView(this).apply {
+            text = "Цвет — по горизонтали; оттенки — по вертикали"
+            textSize = 10f; setTextColor(Color.rgb(132, 160, 181))
+        })
+        val footer = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        footer.addView(TextView(this).apply {
+            text = "СБРОСИТЬ"; textSize = 11f; setTextColor(Color.rgb(150, 190, 210))
+            setPadding(dp(8), dp(8), dp(8), dp(8))
+            setOnClickListener {
+                bars.forEachIndexed { i, bar -> bar.progress = defaults[i] }
+                selectedHue = .56f; palette.invalidate(); apply()
+            }
+        }, LinearLayout.LayoutParams(0, dp(38), 1f))
+        footer.addView(TextView(this).apply {
+            text = "ЗАКРЫТЬ"; textSize = 11f; typeface = Typeface.DEFAULT_BOLD
+            setTextColor(cyan); gravity = Gravity.CENTER; setPadding(dp(8), dp(8), dp(8), dp(8))
+            setOnClickListener { dialog.dismiss() }
+        })
+        panel.addView(footer)
+        dialog.setContentView(panel)
+        dialog.show()
+        dialog.window?.apply {
+            setBackgroundDrawableResource(android.R.color.transparent)
+            setLayout(-1, dp(430)); setGravity(Gravity.BOTTOM)
+            addFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+            attributes = attributes.apply { dimAmount = .16f }
+        }
         apply()
     }
 
