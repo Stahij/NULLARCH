@@ -1082,6 +1082,11 @@
           state.labGlow = Math.max(0.25, Math.min(1.75, Number(glow) || 1));
           return true;
         },
+        rotate(dx, dy) {
+          registerActivity();
+          state.targetRotY += Number(dx) || 0;
+          state.targetRotX = Math.max(-0.85, Math.min(0.85, state.targetRotX + (Number(dy) || 0)));
+        },
         setState(stateName) {
           const key = String(stateName || '').toLowerCase();
           if (AI_STATES[key]) {
