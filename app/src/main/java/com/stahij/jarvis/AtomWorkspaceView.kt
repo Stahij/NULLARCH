@@ -63,6 +63,8 @@ class AtomWorkspaceView(
     private var motionEnabled = true
     private var downX = 0f
     private var downY = 0f
+    private var lastTouchX = 0f
+    private var lastTouchY = 0f
     private var selected: OrbitalItem? = null
     private var dragging = false
     private var downAt = 0L
@@ -241,6 +243,8 @@ class AtomWorkspaceView(
                 downAt = SystemClock.uptimeMillis()
                 downX = event.x
                 downY = event.y
+                lastTouchX = event.x
+                lastTouchY = event.y
                 selected = items.firstOrNull { it.page == page && it.rect.contains(event.x, event.y) }
                 dragging = false
                 if (selected == null) gestureDetector.onTouchEvent(event)
@@ -248,7 +252,9 @@ class AtomWorkspaceView(
             }
             MotionEvent.ACTION_MOVE -> {
                 if (selected == null) {
-                    if (downY < height - 68f * density) onRotateCore(event.x - downX, event.y - downY)
+                    if (downY < height - 68f * density) onRotateCore(event.x - lastTouchX, event.y - lastTouchY)
+                    lastTouchX = event.x
+                    lastTouchY = event.y
                     gestureDetector.onTouchEvent(event)
                     return true
                 }
