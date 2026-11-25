@@ -86,7 +86,7 @@
         nextSurgeAt: 2.5,
         activeNodeIndex: -1,
         activeNodePulse: 0,
-        labSize: 1.0, labBrightness: 1.0, labIntensity: 1.0, labHue: 0.0, labGlow: 1.0
+        labSize: 1.0, labBrightness: 1.0, labIntensity: 1.0, labHue: 0.0, labGlow: 1.0, labSaturation: 1.0
       };
 
       // -----------------------------------------------------------------------
@@ -116,6 +116,7 @@
         uTime:          { value: 0 },
         uDetail:        { value: QUALITY_PROFILES.medium.detail },
         uIntensity:     { value: 1.0 },
+        uLabSaturation: { value: 1.0 },
         uPulseAmp:      { value: 0.032 },
         uHueShift:      { value: 0.0 },
         uSurge:         { value: 0.0 },
@@ -177,6 +178,7 @@
           uniform float uTime;
           uniform float uDetail;
           uniform float uIntensity;
+          uniform float uLabSaturation;
           uniform float uHueShift;
           uniform float uSurge;
           uniform vec3 uSurgeDir;
@@ -213,6 +215,8 @@
             col += whitePlasma * pow(fresnel, 4.2) * 0.45;
             col *= uIntensity;
 
+            float luminance = dot(col, vec3(0.299, 0.587, 0.114));
+            col = mix(vec3(luminance), col, uLabSaturation);
             col = rotateHue(col, uHueShift * 6.2831853);
             gl_FragColor = vec4(col, 1.0);
           }
@@ -1012,6 +1016,7 @@
         sharedUniforms.uIntensity.value = state.currentIntensity * state.labBrightness * state.labIntensity * state.labGlow;
         sharedUniforms.uPulseAmp.value = state.currentPulseAmp;
         sharedUniforms.uHueShift.value = state.currentHueShift + state.labHue;
+        sharedUniforms.uLabSaturation.value = state.labSaturation;
         sharedUniforms.uSurge.value = Math.sin(state.surgeValue * Math.PI);
 
         if (!state.pointerDown) {
@@ -1080,12 +1085,13 @@
             applyQualityTier(key);
           }
         },
-        setVisualSettings(size, brightness, intensity, hue, glow) {
+        setVisualSettings(size, brightness, intensity, hue, glow, saturation) {
           registerActivity();
           state.labSize = Math.max(0.65, Math.min(1.4, Number(size) || 1));
           state.labBrightness = Math.max(0.25, Math.min(1.5, Number(brightness) || 1));
           state.labIntensity = Math.max(0.25, Math.min(1.7, Number(intensity) || 1));
           state.labHue = (Math.max(0, Math.min(1, Number(hue) || 0.56)) - 0.5);
+          state.labSaturation = Math.max(0.15, Math.min(1.0, Number(saturation) || 1.0);
           state.labGlow = Math.max(0.25, Math.min(1.75, Number(glow) || 1));
           return true;
         },
