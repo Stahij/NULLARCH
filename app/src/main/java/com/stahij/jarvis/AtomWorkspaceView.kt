@@ -34,7 +34,9 @@ class AtomWorkspaceView(
     private val installedApps: List<LauncherApp>,
     private val onOpenChat: () -> Unit,
     private val onOpenSettings: () -> Unit,
-    private val onOpenDrawer: () -> Unit
+    private val onOpenDrawer: () -> Unit,
+    private val onOpenLab: () -> Unit,
+    private val onAppOptions: (LauncherApp) -> Unit
 ) : View(context) {
     private data class OrbitalItem(
         val app: LauncherApp,
@@ -62,6 +64,10 @@ class AtomWorkspaceView(
     private var downY = 0f
     private var selected: OrbitalItem? = null
     private var dragging = false
+    private var downAt = 0L
+    private var labGestureTriggered = false
+    private var iconScale = prefs.getFloat("icon_scale", 1f).coerceIn(.65f, 1.5f)
+    private var orbitScale = prefs.getFloat("orbit_scale", 1f).coerceIn(.65f, 1.45f)
     private val gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
         override fun onDown(e: MotionEvent): Boolean = true
 
@@ -146,6 +152,9 @@ class AtomWorkspaceView(
         return true
     }
 
+    fun setLabIconScale(value: Float) { iconScale = value.coerceIn(.65f, 1.5f); prefs.edit().putFloat("icon_scale", iconScale).apply(); invalidate() }
+    fun setLabOrbitScale(value: Float) { orbitScale = value.coerceIn(.65f, 1.45f); prefs.edit().putFloat("orbit_scale", orbitScale).apply(); invalidate() }
+
     fun changePage(delta: Int) {
         if (delta > 0 && page == pageCount - 1) pageCount++
         page = (page + delta).coerceIn(0, pageCount - 1)
@@ -182,12 +191,12 @@ class AtomWorkspaceView(
 
         items.filter { it.page == page }.forEachIndexed { index, item ->
             val angle = item.angle + if (running) elapsed * (.11f + (index % 4) * .012f) else 0f
-            val radius = base * item.orbit
+            val radius = base * item.orbit * orbitScale
             val x = cx + cos(angle.toDouble()).toFloat() * radius
             val y = cy + sin(angle.toDouble()).toFloat() * radius * .57f
             val depth = (sin(angle.toDouble()).toFloat() + 1f) * .5f
             val scale = .72f + depth * .38f
-            val iconSize = 34f * density * scale
+            val iconSize = 34f * density * scale * iconScale
             val alpha = (155 + depth * 100).toInt()
             paint.color = Color.argb(alpha, 12, 30, 48)
             paint.style = Paint.Style.FILL
@@ -220,8 +229,17 @@ class AtomWorkspaceView(
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
+        if (!labGestureTriggered && event.pointerCount >= 5 && (event.actionMasked == MotionEvent.ACTION_POINTER_DOWN || event.actionMasked == MotionEvent.ACTION_MOVE)) {
+            labGestureTriggered = true
+            selected = null
+            dragging = false
+            onOpenLab()
+            return true
+        }
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
+                labGestureTriggered = false
+                downAt = SystemClock.uptimeMillis()
                 downX = event.x
                 downY = event.y
                 selected = items.firstOrNull { it.page == page && it.rect.contains(event.x, event.y) }
@@ -251,6 +269,7 @@ class AtomWorkspaceView(
                 return true
             }
             MotionEvent.ACTION_UP -> {
+                if (labGestureTriggered) { labGestureTriggered = false; selected = null; dragging = false; return true }
                 if (selected == null) {
                     val dx = event.x - downX
                     val dy = event.y - downY
@@ -265,7 +284,7 @@ class AtomWorkspaceView(
                         else -> gestureDetector.onTouchEvent(event)
                     }
                 } else {
-                    if (!dragging) selected?.let { launch(it.app) }
+                    if (!dragging) selected?.let { if (SystemClock.uptimeMillis() - downAt >= 500L) onAppOptions(it.app) else launch(it.app) }
                     if (dragging) saveLayout()
                 }
                 selected = null
@@ -273,6 +292,7 @@ class AtomWorkspaceView(
                 return true
             }
             MotionEvent.ACTION_CANCEL -> {
+                labGestureTriggered = false
                 if (selected == null) gestureDetector.onTouchEvent(event)
                 selected = null
                 dragging = false
