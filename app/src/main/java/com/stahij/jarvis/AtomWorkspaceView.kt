@@ -89,7 +89,7 @@ class AtomWorkspaceView(
             if (e1 == null) return false
             val dx = e2.x - e1.x
             val dy = e2.y - e1.y
-            if (abs(dy) > abs(dx) && dy < -70f * density && e1.y > 56f * density && e1.y < height - 64f * density) {
+            if (abs(dy) > abs(dx) && dy < -42f * density && e1.y > height - 112f * density && e1.x < width * .38f) {
                 onOpenDrawer()
                 return true
             }
@@ -276,10 +276,10 @@ class AtomWorkspaceView(
                     val dx = event.x - downX
                     val dy = event.y - downY
                     val horizontalSwipe = abs(dx) > 55f * density && abs(dx) > abs(dy)
-                    val verticalSwipe = dy < -55f * density &&
+                    val verticalSwipe = dy < -38f * density &&
                         abs(dy) > abs(dx) &&
-                        downY > 56f * density &&
-                        downY < height - 64f * density
+                        downY > height - 112f * density &&
+                        downX < width * .38f
                     when {
                         horizontalSwipe -> changePage(if (dx < 0f) 1 else -1)
                         verticalSwipe -> onOpenDrawer()
