@@ -123,13 +123,15 @@ class LauncherActivity : Activity() {
         val defaults = intArrayOf(500, 700, 700, 500, 500, 650)
         val bars = mutableListOf<android.widget.SeekBar>()
         var selectedHue = 0.56f
+        var selectedSaturation = 0.9f
         fun apply() {
             coreView.bridge.setVisualSettings(
                 .65f + bars[0].progress / 1000f * .75f,
                 .25f + bars[1].progress / 1000f * 1.25f,
                 .25f + bars[2].progress / 1000f * 1.45f,
                 selectedHue,
-                .25f + bars[5].progress / 1000f * 1.5f
+                .25f + bars[5].progress / 1000f * 1.5f,
+                selectedSaturation
             )
             workspace.setLabIconScale(.65f + bars[3].progress / 1000f * .85f)
             workspace.setLabOrbitScale(.65f + bars[4].progress / 1000f * .8f)
@@ -170,13 +172,15 @@ class LauncherActivity : Activity() {
                     canvas.drawRect(x * cellW, y * cellH, (x + 1) * cellW + 1f, (y + 1) * cellH + 1f, p)
                 }
                 val markerX = selectedHue * width
+                val markerY = (1f - (selectedSaturation - .15f) / .85f) * height
                 p.color = Color.WHITE; p.style = android.graphics.Paint.Style.STROKE; p.strokeWidth = dp(2).toFloat()
-                canvas.drawRect(markerX - dp(3), 0f, markerX + dp(3), height.toFloat(), p)
+                canvas.drawCircle(markerX, markerY, dp(7).toFloat(), p)
                 p.style = android.graphics.Paint.Style.FILL
             }
             override fun onTouchEvent(event: android.view.MotionEvent): Boolean {
                 if (event.action == android.view.MotionEvent.ACTION_DOWN || event.action == android.view.MotionEvent.ACTION_MOVE) {
                     selectedHue = (event.x / width.coerceAtLeast(1)).coerceIn(0f, 1f)
+                    selectedSaturation = (1f - event.y / height.coerceAtLeast(1) * .85f).coerceIn(.15f, 1f)
                     invalidate(); apply(); return true
                 }
                 return true
@@ -193,7 +197,7 @@ class LauncherActivity : Activity() {
             setPadding(dp(8), dp(8), dp(8), dp(8))
             setOnClickListener {
                 bars.forEachIndexed { i, bar -> bar.progress = defaults[i] }
-                selectedHue = .56f; palette.invalidate(); apply()
+                selectedHue = .56f; selectedSaturation = .9f; palette.invalidate(); apply()
             }
         }, LinearLayout.LayoutParams(0, dp(38), 1f))
         footer.addView(TextView(this).apply {
