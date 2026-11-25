@@ -23,7 +23,7 @@ class LauncherActivity : Activity() {
     private val cyan = Color.rgb(99, 224, 255)
     private val bg = Color.rgb(3, 8, 20)
     private var installedApps: List<LauncherApp> = emptyList()
-    private val selectedCore = JarvisCoreBridge.CoreTheme.ATOMIC
+    private val selectedCore = JarvisCoreBridge.CoreTheme.PLASMA
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -91,16 +91,13 @@ class LauncherActivity : Activity() {
     }
 
     private fun showCoreMenu() {
-        val options = arrayOf("Atomic Core", "Plasma Core", "Настройки и инструменты")
+        val options = arrayOf("Plasma Core", "Настройки и инструменты")
         AlertDialog.Builder(this)
             .setTitle("Визуальное ядро Jarvis")
             .setItems(options) { _, which ->
                 when (which) {
-                    0 -> {
-                        if (::coreView.isInitialized) coreView.bridge.setTheme(JarvisCoreBridge.CoreTheme.ATOMIC)
-                    }
-                    1 -> { if (::coreView.isInitialized) coreView.bridge.setTheme(JarvisCoreBridge.CoreTheme.PLASMA) }
-                    2 -> startActivity(Intent(this, MainActivity::class.java).apply {
+                    0 -> { if (::coreView.isInitialized) coreView.bridge.setTheme(JarvisCoreBridge.CoreTheme.PLASMA) }
+                    1 -> startActivity(Intent(this, MainActivity::class.java).apply {
                         putExtra(MainActivity.EXTRA_TOOLS_ONLY, true)
                     })
                 }

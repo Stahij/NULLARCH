@@ -1,20 +1,1118 @@
-<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><style>html,body,#canvas-container{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:transparent}#canvas-container{position:absolute;inset:0}</style><script src="three.min.local.js"></script><script src="atomicCore.js"></script><script src="plasmaCore.js"></script></head><body><div id="canvas-container"></div><script>
-(function(){'use strict';let scene,camera,renderer,clock,active=null,cores={},theme='atomic',quality='auto',state='idle',paused=false,disposed=false,raf=0,fps=60,frames=0,last=0,eco=false,stable=0,renderCount=0,dpr=1,appliedQuality='';const host=document.getElementById('canvas-container'),speeds={idle:1,listening:1.35,processing:1.8,speaking:1.55};
-function q(){return quality!=='auto'?quality:(eco?'low':(fps<43?'medium':'high'));}
-function buildRenderer(){scene=new THREE.Scene();camera=new THREE.PerspectiveCamera(52,1,.1,100);camera.position.z=4.7;renderer=new THREE.WebGLRenderer({antialias:false,alpha:true,powerPreference:'low-power',stencil:false});dpr=Math.min(window.devicePixelRatio||1,1.25);renderer.setPixelRatio(dpr);renderer.setClearColor(0,0);host.appendChild(renderer.domElement);scene.add(new THREE.AmbientLight(0xffffff,.82));const l=new THREE.PointLight(0x00cfff,2,12);l.position.set(2,2,3);scene.add(l);clock=new THREE.Clock(false);resize();}
-function make(t){return t==='plasma'?new PlasmaCore(scene,q()):new AtomicCore(scene,q());}
-function clearCores(){Object.keys(cores).forEach(k=>{if(cores[k])cores[k].dispose();});cores={};active=null;}
-function rebuild(){clearCores();active=make(theme);cores[theme]=active;active.setVisibility(true);appliedQuality=q();}
-function setTheme(t){if(t!=='atomic'&&t!=='plasma'||t===theme&&active)return;if(active)active.setVisibility(false);theme=t;if(!cores[t])cores[t]=make(t);active=cores[t];active.setVisibility(true);}
-function setQuality(v){if(!['auto','low','medium','high'].includes(v)||v===quality)return;quality=v;eco=false;stable=0;clearCores();rebuild();}
-function resize(){if(!renderer||!camera)return;const w=Math.max(1,host.clientWidth),h=Math.max(1,host.clientHeight);camera.aspect=w/h;camera.updateProjectionMatrix();renderer.setSize(w,h);}
-function setEco(v){if(eco===v)return;eco=v;if(quality==='auto')rebuild();renderer.setPixelRatio(v?Math.min(dpr,.8):dpr);renderCount=0;}
-function tick(){if(paused||disposed)return;raf=requestAnimationFrame(tick);const dt=Math.min(clock.getDelta(),.05),t=clock.elapsedTime;if(active)active.update(dt,t,state,speeds[state]||1);if(!eco||(++renderCount%2===0))renderer.render(scene,camera);frames++;const now=performance.now();if(now-last>=2000){fps=Math.round(frames*1000/(now-last));frames=0;last=now;if(quality==='auto'&&(stable+=2)>=6){if(fps<27&&!eco)setEco(true);else if(fps>48&&eco)setEco(false);else if(q()!==appliedQuality)rebuild();stable=0;}}}
-function start(){if(raf||paused||disposed)return;clock.start();last=performance.now();frames=0;raf=requestAnimationFrame(tick);}
-function stop(){if(raf){cancelAnimationFrame(raf);raf=0;}if(clock)clock.stop();}
-function lost(e){e.preventDefault();paused=true;stop();}
-function restored(){if(disposed)return;clearCores();rebuild();paused=false;start();}
-function dispose(){if(disposed)return;disposed=true;stop();window.removeEventListener('resize',resize);if(renderer){renderer.domElement.removeEventListener('webglcontextlost',lost);renderer.domElement.removeEventListener('webglcontextrestored',restored);}clearCores();if(renderer){renderer.dispose();renderer.forceContextLoss();if(renderer.domElement.parentNode)renderer.domElement.parentNode.removeChild(renderer.domElement);renderer=null;}}
-window.JarvisCoreAPI={setTheme,setQuality,setState:s=>{if(speeds[s])state=s;},pause:()=>{if(!disposed){paused=true;stop();}},resume:()=>{if(!disposed&&paused){paused=false;start();}},dispose,getStats:()=>({fps,quality:q(),eco})};
-try{buildRenderer();renderer.domElement.addEventListener('webglcontextlost',lost,false);renderer.domElement.addEventListener('webglcontextrestored',restored,false);window.addEventListener('resize',resize,{passive:true});active=make(theme);cores[theme]=active;appliedQuality=q();start();window.JarvisCoreReady=true;}catch(e){window.JarvisCoreError=String(e);}
-})();</script></body></html>
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>NULLARCH — Plasma Core & Orbital Icons</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: transparent;
+      touch-action: none;
+    }
+    #viewport {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+    canvas {
+      display: block;
+      width: 100% !important;
+      height: 100% !important;
+    }
+  </style>
+  <!-- Локальная библиотека Three.js без интернета и CDN -->
+  <script src="three.min.local.js"></script>
+</head>
+<body>
+  <div id="viewport"></div>
+
+  <script>
+    (function () {
+      const viewportEl = document.getElementById('viewport');
+
+      // -----------------------------------------------------------------------
+      // 1. ПРОФИЛИ КАЧЕСТВА И СОСТОЯНИЯ ИИ
+      // -----------------------------------------------------------------------
+      const QUALITY_PROFILES = {
+        high:   { maxPixelRatio: 1.5,  detail: 2.5, particleRatio: 1.0,  swarmRatio: 1.0 },
+        medium: { maxPixelRatio: 1.25, detail: 1.8, particleRatio: 0.75, swarmRatio: 0.75 },
+        low:    { maxPixelRatio: 0.9,  detail: 1.0, particleRatio: 0.5,  swarmRatio: 0.5 }
+      };
+
+      const AI_STATES = {
+        idle:       { speed: 1.0,  intensity: 1.0,  pulseAmp: 0.032, hueShift: 0.0,   scale: 1.0 },
+        listening:  { speed: 1.55, intensity: 1.24, pulseAmp: 0.055, hueShift: 0.14,  scale: 1.05 },
+        processing: { speed: 2.35, intensity: 1.38, pulseAmp: 0.045, hueShift: -0.12, scale: 0.97 },
+        speaking:   { speed: 1.85, intensity: 1.48, pulseAmp: 0.075, hueShift: 0.08,  scale: 1.07 }
+      };
+
+      const state = {
+        mode: 'auto',
+        activeTier: 'medium',
+        aiStateKey: 'idle',
+        isRunning: true,
+        isSuspended: false,
+        simTime: 0,
+        lastInteractionTime: performance.now(),
+        isIdlePowerSave: false,
+        currentSpeed: 1.0,
+        currentIntensity: 1.0,
+        currentPulseAmp: 0.032,
+        currentHueShift: 0.0,
+        currentScale: 1.0,
+        targetRotX: 0,
+        targetRotY: 0,
+        currentRotX: 0,
+        currentRotY: 0,
+        pointerDown: false,
+        pointerMoved: false,
+        downX: 0,
+        downY: 0,
+        lastX: 0,
+        lastY: 0,
+        surgeValue: 0,
+        nextSurgeAt: 2.5,
+        activeNodeIndex: -1,
+        activeNodePulse: 0
+      };
+
+      // -----------------------------------------------------------------------
+      // 2. СЦЕНА, КАМЕРА И РЕНДЕРЕР
+      // -----------------------------------------------------------------------
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(44, window.innerWidth / window.innerHeight, 0.1, 40);
+      camera.position.set(0, 0, 5.8);
+
+      const renderer = new THREE.WebGLRenderer({
+        antialias: true,
+        alpha: true,
+        powerPreference: 'default',
+        stencil: false,
+        depth: true
+      });
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.05;
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      viewportEl.appendChild(renderer.domElement);
+
+      const coreRoot = new THREE.Group();
+      scene.add(coreRoot);
+
+      const sharedUniforms = {
+        uTime:          { value: 0 },
+        uDetail:        { value: QUALITY_PROFILES.medium.detail },
+        uIntensity:     { value: 1.0 },
+        uPulseAmp:      { value: 0.032 },
+        uHueShift:      { value: 0.0 },
+        uSurge:         { value: 0.0 },
+        uSurgeDir:      { value: new THREE.Vector3(0.6, 0.7, 0.4).normalize() },
+        uParticleRatio: { value: 0.75 },
+        uSwarmRatio:    { value: 0.75 },
+        uPixelRatio:    { value: 1.25 }
+      };
+
+      const PLASMA_GLSL = `
+        float gyroid(vec3 p) {
+          return dot(sin(p), cos(p.yzx));
+        }
+        float plasmaField(vec3 p, float t, float detail) {
+          vec3 q = p * 2.1 + vec3(t * 0.42, -t * 0.31, t * 0.27);
+          float n1 = gyroid(q);
+          vec3 warp = p * 3.4 - vec3(t * 0.55, t * 0.38, -t * 0.44) + n1 * 0.65;
+          float n2 = gyroid(warp);
+          float combined = n1 * 0.58 + n2 * 0.42;
+          if (detail > 1.5) {
+            float n3 = gyroid(warp * 2.15 + vec3(n2 * 0.9, -t * 0.7, t * 0.5));
+            combined += n3 * 0.22 * clamp(detail - 1.5, 0.0, 1.0);
+          }
+          return combined;
+        }
+      `;
+
+      // -----------------------------------------------------------------------
+      // 3. DRAW CALL 1: ВНУТРЕННЕЕ ПЛАЗМЕННОЕ ЯДРО
+      // -----------------------------------------------------------------------
+      const innerCoreGeo = new THREE.IcosahedronGeometry(0.95, 3);
+      const innerCoreMat = new THREE.ShaderMaterial({
+        uniforms: sharedUniforms,
+        vertexShader: `
+          uniform float uTime;
+          uniform float uPulseAmp;
+          uniform float uSurge;
+          varying vec3 vNormalW;
+          varying vec3 vPosLocal;
+          varying vec3 vWorldPos;
+          void main() {
+            vPosLocal = position;
+            float w1 = sin(position.x * 3.2 + uTime * 1.6) * cos(position.y * 3.1 - uTime * 1.3);
+            float w2 = sin(position.z * 4.1 + uTime * 2.1 + position.x * 2.0);
+            float disp = (w1 * 0.65 + w2 * 0.35) * (uPulseAmp + uSurge * 0.025);
+            vec4 worldPos = modelMatrix * vec4(position + normal * disp, 1.0);
+            vWorldPos = worldPos.xyz;
+            vNormalW = normalize(mat3(modelMatrix) * normal);
+            gl_Position = projectionMatrix * viewMatrix * worldPos;
+          }
+        `,
+        fragmentShader: `
+          precision highp float;
+          uniform float uTime;
+          uniform float uDetail;
+          uniform float uIntensity;
+          uniform float uHueShift;
+          uniform float uSurge;
+          uniform vec3 uSurgeDir;
+          varying vec3 vNormalW;
+          varying vec3 vPosLocal;
+          varying vec3 vWorldPos;
+          ${PLASMA_GLSL}
+          void main() {
+            vec3 N = normalize(vNormalW);
+            vec3 V = normalize(cameraPosition - vWorldPos);
+            float NdotV = max(dot(N, V), 0.0);
+            float fresnel = pow(1.0 - NdotV, 2.3);
+
+            vec3 viewLocal = normalize(vPosLocal - cameraPosition * 0.25);
+            vec3 deepCoord = vPosLocal * 1.15 - viewLocal * 0.32;
+
+            float outerStream = plasmaField(vPosLocal, uTime, uDetail);
+            float innerStream = plasmaField(deepCoord, uTime * 0.72 + 1.7, max(1.0, uDetail - 0.6));
+            float filament = pow(clamp(1.0 - abs(outerStream * 0.68 + innerStream * 0.32), 0.0, 1.0), 3.0);
+            float coreHeat = smoothstep(-0.35, 0.85, innerStream * 0.6 + outerStream * 0.4);
+
+            vec3 deepCobalt   = vec3(0.012, 0.065, 0.32);
+            vec3 royalBlue    = vec3(0.02, 0.28, 0.85);
+            vec3 electricCyan = vec3(0.04, 0.78 + uHueShift * 0.35, 1.0);
+            vec3 whitePlasma  = vec3(0.86, 0.97, 1.0);
+
+            vec3 col = mix(deepCobalt, royalBlue, coreHeat);
+            col = mix(col, electricCyan, smoothstep(0.22, 0.78, filament));
+            col = mix(col, whitePlasma, smoothstep(0.76, 0.98, filament) * 0.92);
+
+            float surgeMask = (1.0 - smoothstep(0.0, 0.55, distance(normalize(vPosLocal), uSurgeDir))) * uSurge;
+            col += whitePlasma * surgeMask * (0.55 + filament * 1.15);
+            col += electricCyan * fresnel * 0.72;
+            col += whitePlasma * pow(fresnel, 4.2) * 0.45;
+            col *= uIntensity;
+
+            gl_FragColor = vec4(col, 1.0);
+          }
+        `
+      });
+      coreRoot.add(new THREE.Mesh(innerCoreGeo, innerCoreMat));
+
+      // -----------------------------------------------------------------------
+      // 4. DRAW CALL 2: ВНЕШНЯЯ ЭНЕРГЕТИЧЕСКАЯ КОРОНА ЯДРА
+      // -----------------------------------------------------------------------
+      const outerShellGeo = new THREE.IcosahedronGeometry(1.28, 2);
+      const outerShellMat = new THREE.ShaderMaterial({
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        uniforms: sharedUniforms,
+        vertexShader: `
+          uniform float uTime;
+          uniform float uPulseAmp;
+          varying vec3 vNormalW;
+          varying vec3 vWorldPos;
+          varying vec3 vPosLocal;
+          void main() {
+            vPosLocal = position;
+            float breathe = 1.0 + sin(uTime * 1.45 + position.y * 2.2) * (uPulseAmp * 1.25);
+            vec4 worldPos = modelMatrix * vec4(position * breathe, 1.0);
+            vWorldPos = worldPos.xyz;
+            vNormalW = normalize(mat3(modelMatrix) * normal);
+            gl_Position = projectionMatrix * viewMatrix * worldPos;
+          }
+        `,
+        fragmentShader: `
+          precision mediump float;
+          uniform float uTime;
+          uniform float uDetail;
+          uniform float uIntensity;
+          uniform float uHueShift;
+          uniform float uSurge;
+          varying vec3 vNormalW;
+          varying vec3 vWorldPos;
+          varying vec3 vPosLocal;
+          ${PLASMA_GLSL}
+          void main() {
+            vec3 N = normalize(vNormalW);
+            vec3 V = normalize(cameraPosition - vWorldPos);
+            float NdotV = max(dot(N, V), 0.0);
+            float rimBand = sin(NdotV * 3.14159265);
+            float softHalo = pow(NdotV, 1.65) * 0.42 + pow(rimBand, 2.2) * 0.65;
+
+            vec3 p = vPosLocal * 1.75;
+            float swirl = uTime * 0.48 + p.y * 1.4;
+            float s = sin(swirl), c = cos(swirl);
+            p.xz = mat2(c, -s, s, c) * p.xz;
+
+            float stream = plasmaField(p, -uTime * 0.65, max(1.0, uDetail - 0.5));
+            float wisps = smoothstep(0.15, 0.88, 1.0 - abs(stream));
+
+            vec3 outerCyan  = vec3(0.03, 0.68 + uHueShift * 0.3, 1.0);
+            vec3 innerAzure = vec3(0.02, 0.26, 0.88);
+            vec3 col = mix(innerAzure, outerCyan, wisps);
+
+            float alpha = softHalo * (0.24 + wisps * 0.44) * uIntensity * (1.0 + uSurge * 0.25);
+            gl_FragColor = vec4(col, clamp(alpha, 0.0, 0.85));
+          }
+        `
+      });
+      coreRoot.add(new THREE.Mesh(outerShellGeo, outerShellMat));
+
+      // -----------------------------------------------------------------------
+      // 5. DRAW CALL 3: ОРГАНИЧЕСКИЕ ПЛАЗМЕННЫЕ ЛЕНТЫ ЯДРА
+      // -----------------------------------------------------------------------
+      function createMergedRibbonsGeometry(ribbonCount, lengthSegments) {
+        const vertsPerRibbon = (lengthSegments + 1) * 2;
+        const positions = new Float32Array(ribbonCount * vertsPerRibbon * 3);
+        const uvs = new Float32Array(ribbonCount * vertsPerRibbon * 2);
+        const ribbonMeta = new Float32Array(ribbonCount * vertsPerRibbon * 3);
+        const indices = new Uint16Array(ribbonCount * lengthSegments * 6);
+
+        const qTilt = new THREE.Quaternion();
+        const euler = new THREE.Euler();
+        const pCenter = new THREE.Vector3(), pNext = new THREE.Vector3();
+        const tangent = new THREE.Vector3(), radial = new THREE.Vector3(), sideVec = new THREE.Vector3(), vPos = new THREE.Vector3();
+
+        let vOffset = 0, iOffset = 0;
+        for (let r = 0; r < ribbonCount; r++) {
+          const seed = (r + 1) * 1.6180339;
+          const baseRadius = 1.38 + (r % 3) * 0.14;
+          const arcSpan = Math.PI * (1.2 + (r % 2) * 0.32);
+          const maxHalfWidth = 0.042 + (r % 2) * 0.014;
+
+          euler.set((r * 1.22) - 1.1, (r * 2.14) + 0.5, (r * 0.91) - 0.7);
+          qTilt.setFromEuler(euler);
+
+          const evalPoint = (u, target) => {
+            const theta = (u - 0.5) * arcSpan + seed;
+            const rad = baseRadius + Math.sin(theta * 2.0 + seed) * 0.14;
+            const yWave = Math.sin(theta * 2.5 + seed * 1.4) * 0.3;
+            target.set(Math.cos(theta) * rad, yWave, Math.sin(theta) * rad).applyQuaternion(qTilt);
+          };
+
+          const baseVertexIndex = vOffset;
+          for (let i = 0; i <= lengthSegments; i++) {
+            const u = i / lengthSegments;
+            evalPoint(u, pCenter);
+            evalPoint(Math.min(1.0, u + 0.01), pNext);
+            tangent.subVectors(pNext, pCenter).normalize();
+            radial.copy(pCenter).normalize();
+            sideVec.crossVectors(tangent, radial).normalize();
+            const halfW = maxHalfWidth * Math.pow(Math.sin(u * Math.PI), 0.7);
+
+            for (let s = 0; s < 2; s++) {
+              const sideSign = s === 0 ? -1 : 1;
+              vPos.copy(pCenter).addScaledVector(sideVec, halfW * sideSign);
+              positions[vOffset * 3] = vPos.x;
+              positions[vOffset * 3 + 1] = vPos.y;
+              positions[vOffset * 3 + 2] = vPos.z;
+              uvs[vOffset * 2] = u;
+              uvs[vOffset * 2 + 1] = s;
+              ribbonMeta[vOffset * 3] = r / ribbonCount;
+              ribbonMeta[vOffset * 3 + 1] = seed;
+              ribbonMeta[vOffset * 3 + 2] = sideSign;
+              vOffset++;
+            }
+          }
+          for (let i = 0; i < lengthSegments; i++) {
+            const a = baseVertexIndex + i * 2, b = a + 1, c = a + 2, d = a + 3;
+            indices[iOffset++] = a; indices[iOffset++] = c; indices[iOffset++] = b;
+            indices[iOffset++] = b; indices[iOffset++] = c; indices[iOffset++] = d;
+          }
+        }
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+        geo.setAttribute('aRibbonMeta', new THREE.BufferAttribute(ribbonMeta, 3));
+        geo.setIndex(new THREE.BufferAttribute(indices, 1));
+        return geo;
+      }
+
+      const ribbonsGeo = createMergedRibbonsGeometry(5, 64);
+      const ribbonsMat = new THREE.ShaderMaterial({
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        side: THREE.DoubleSide,
+        uniforms: sharedUniforms,
+        vertexShader: `
+          attribute vec3 aRibbonMeta;
+          uniform float uTime;
+          uniform float uPulseAmp;
+          varying vec2 vUv;
+          varying float vSeed;
+          vec3 rotateY(vec3 p, float a) { float s = sin(a), c = cos(a); return vec3(c * p.x + s * p.z, p.y, -s * p.x + c * p.z); }
+          vec3 rotateX(vec3 p, float a) { float s = sin(a), c = cos(a); return vec3(p.x, c * p.y - s * p.z, s * p.y + c * p.z); }
+          void main() {
+            vUv = uv;
+            vSeed = aRibbonMeta.y;
+            float dir = mod(floor(aRibbonMeta.x * 5.0 + 0.5), 2.0) == 0.0 ? 1.0 : -1.0;
+            float speed = (0.38 + aRibbonMeta.x * 0.25) * dir;
+            float wave = sin(uv.x * 9.0 - uTime * 2.4 + vSeed * 3.0) * (0.07 + uPulseAmp * 0.8);
+            vec3 pos = position + normalize(position) * wave;
+            pos = rotateY(pos, uTime * speed + vSeed);
+            pos = rotateX(pos, sin(uTime * 0.35 + vSeed) * 0.28);
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+          }
+        `,
+        fragmentShader: `
+          precision mediump float;
+          uniform float uTime;
+          uniform float uIntensity;
+          uniform float uHueShift;
+          uniform float uSurge;
+          varying vec2 vUv;
+          varying float vSeed;
+          void main() {
+            float crossProfile = sin(vUv.y * 3.14159265);
+            float lengthFade = pow(sin(vUv.x * 3.14159265), 0.75);
+            float pulse = pow(sin(vUv.x * 12.0 - uTime * 3.6 + vSeed * 4.0) * 0.5 + 0.5, 2.2);
+            vec3 cobalt = vec3(0.03, 0.32, 0.95);
+            vec3 cyan   = vec3(0.06, 0.84 + uHueShift * 0.3, 1.0);
+            vec3 white  = vec3(0.92, 0.99, 1.0);
+            vec3 col = mix(cobalt, cyan, 0.45 + 0.55 * pulse);
+            col = mix(col, white, pow(pulse, 2.6) * 0.85) * uIntensity * (1.0 + uSurge * 0.3);
+            gl_FragColor = vec4(col, clamp(crossProfile * lengthFade * (0.24 + pulse * 0.62), 0.0, 0.9));
+          }
+        `
+      });
+      coreRoot.add(new THREE.Mesh(ribbonsGeo, ribbonsMat));
+
+      // -----------------------------------------------------------------------
+      // 6. DRAW CALL 4: ФОНОВЫЕ ИСКРЫ ЯДРА (32 ЧАСТИЦЫ)
+      // -----------------------------------------------------------------------
+      const BG_PARTICLES = 32;
+      const bgParticleGeo = new THREE.BufferGeometry();
+      const bgPos = new Float32Array(BG_PARTICLES * 3);
+      const bgOrbit = new Float32Array(BG_PARTICLES * 4);
+      const bgVisual = new Float32Array(BG_PARTICLES * 3);
+
+      for (let i = 0; i < BG_PARTICLES; i++) {
+        bgOrbit[i * 4]     = 1.25 + Math.random() * 1.2;
+        bgOrbit[i * 4 + 1] = Math.random() * Math.PI * 2;
+        bgOrbit[i * 4 + 2] = Math.acos(2 * Math.random() - 1);
+        bgOrbit[i * 4 + 3] = (0.25 + Math.random() * 0.55) * (i % 2 === 0 ? 1 : -1);
+        bgVisual[i * 3]     = 16.0 + Math.random() * 18.0;
+        bgVisual[i * 3 + 1] = Math.random() * Math.PI * 2;
+        bgVisual[i * 3 + 2] = i / BG_PARTICLES;
+      }
+      bgParticleGeo.setAttribute('position', new THREE.BufferAttribute(bgPos, 3));
+      bgParticleGeo.setAttribute('aOrbit', new THREE.BufferAttribute(bgOrbit, 4));
+      bgParticleGeo.setAttribute('aVisual', new THREE.BufferAttribute(bgVisual, 3));
+
+      const bgParticleMat = new THREE.ShaderMaterial({
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        uniforms: sharedUniforms,
+        vertexShader: `
+          attribute vec4 aOrbit;
+          attribute vec3 aVisual;
+          uniform float uTime;
+          uniform float uPixelRatio;
+          uniform float uParticleRatio;
+          uniform float uPulseAmp;
+          varying float vAlpha;
+          void main() {
+            if (aVisual.z > uParticleRatio) {
+              vAlpha = 0.0;
+              gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+              gl_PointSize = 0.0;
+              return;
+            }
+            float rad = aOrbit.x + sin(uTime * 1.4 + aVisual.y) * (0.1 + uPulseAmp);
+            float theta = aOrbit.y + uTime * aOrbit.w;
+            float phi = aOrbit.z + sin(uTime * 0.45 + aVisual.y) * 0.35;
+            float sinPhi = sin(phi);
+            vec3 pos = vec3(rad * sinPhi * cos(theta), rad * cos(phi), rad * sinPhi * sin(theta));
+            vec4 mvPos = modelViewMatrix * vec4(pos, 1.0);
+            float twinkle = sin(uTime * 2.6 + aVisual.y * 2.0) * 0.5 + 0.5;
+            vAlpha = 0.25 + 0.75 * twinkle;
+            gl_PointSize = aVisual.x * uPixelRatio * (1.6 / max(-mvPos.z, 0.5)) * (0.75 + 0.35 * twinkle);
+            gl_Position = projectionMatrix * mvPos;
+          }
+        `,
+        fragmentShader: `
+          precision mediump float;
+          uniform float uIntensity;
+          uniform float uHueShift;
+          uniform float uSurge;
+          varying float vAlpha;
+          void main() {
+            if (vAlpha <= 0.01) discard;
+            float d = length(gl_PointCoord - vec2(0.5)) * 2.0;
+            if (d > 1.0) discard;
+            float core = exp(-d * d * 8.5);
+            float glow = pow(1.0 - d, 2.2) * 0.55;
+            vec3 cyan  = vec3(0.06, 0.84 + uHueShift * 0.3, 1.0);
+            vec3 white = vec3(0.94, 0.99, 1.0);
+            vec3 col = mix(cyan, white, core) * uIntensity * (1.0 + uSurge * 0.35);
+            gl_FragColor = vec4(col, (core + glow) * vAlpha);
+          }
+        `
+      });
+      coreRoot.add(new THREE.Points(bgParticleGeo, bgParticleMat));
+
+      // -----------------------------------------------------------------------
+      // 7. ОРБИТАЛЬНЫЕ ИКОНКИ ПРИЛОЖЕНИЙ — SWARM NODES (DRAW CALLS 5 & 6)
+      // -----------------------------------------------------------------------
+      let appNodes = [
+        { id: 'phone',    label: 'Phone',    symbol: 'phone',    radius: 2.05, angle: 0.2,  speed: 0.22, tiltX: 0.35,  tiltZ: 0.15 },
+        { id: 'messages', label: 'Messages', symbol: 'chat',     radius: 2.15, angle: 1.1,  speed: 0.19, tiltX: -0.45, tiltZ: 0.3  },
+        { id: 'browser',  label: 'Browser',  symbol: 'globe',    radius: 2.25, angle: 2.1,  speed: 0.17, tiltX: 0.65,  tiltZ: -0.25 },
+        { id: 'camera',   label: 'Camera',   symbol: 'camera',   radius: 2.0,  angle: 3.1,  speed: 0.24, tiltX: -0.2,  tiltZ: -0.5 },
+        { id: 'terminal', label: 'Termux',   symbol: 'terminal', radius: 2.3,  angle: 4.0,  speed: 0.16, tiltX: 0.5,   tiltZ: 0.45 },
+        { id: 'music',    label: 'Music',    symbol: 'music',    radius: 2.1,  angle: 4.9,  speed: 0.21, tiltX: -0.6,  tiltZ: -0.15 },
+        { id: 'maps',     label: 'Maps',     symbol: 'pin',      radius: 2.2,  angle: 5.7,  speed: 0.18, tiltX: 0.15,  tiltZ: 0.6  },
+        { id: 'settings', label: 'Settings', symbol: 'gear',     radius: 2.05, angle: 2.6,  speed: 0.20, tiltX: -0.35, tiltZ: -0.35 }
+      ];
+
+      // Процедурный атлас глифов приложений (512x512, 4x4 сетка) с мягким сферическим полем
+      function createIconAtlasTexture() {
+        const size = 512;
+        const cell = size / 4;
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+
+        const symbols = ['phone', 'chat', 'globe', 'camera', 'terminal', 'music', 'pin', 'gear'];
+
+        symbols.forEach((sym, idx) => {
+          const col = idx % 4;
+          const row = Math.floor(idx / 4);
+          const cx = col * cell + cell * 0.5;
+          const cy = row * cell + cell * 0.5;
+
+          // Сферическое плазменное поле внутри узла
+          const grad = ctx.createRadialGradient(cx, cy, cell * 0.04, cx, cy, cell * 0.46);
+          grad.addColorStop(0.0, 'rgba(186, 230, 253, 0.42)');
+          grad.addColorStop(0.45, 'rgba(14, 165, 233, 0.22)');
+          grad.addColorStop(0.85, 'rgba(2, 132, 199, 0.06)');
+          grad.addColorStop(1.0, 'rgba(2, 132, 199, 0.0)');
+          ctx.fillStyle = grad;
+          ctx.beginPath();
+          ctx.arc(cx, cy, cell * 0.46, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Тонкий энергетический контур узла
+          ctx.strokeStyle = 'rgba(103, 232, 249, 0.32)';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(cx, cy, cell * 0.38, 0, Math.PI * 2);
+          ctx.stroke();
+
+          // Четкий белый символ приложения
+          ctx.save();
+          ctx.translate(cx, cy);
+          ctx.strokeStyle = '#ffffff';
+          ctx.fillStyle = '#ffffff';
+          ctx.lineWidth = 5;
+          ctx.lineCap = 'round';
+          ctx.lineJoin = 'round';
+          ctx.shadowColor = '#38bdf8';
+          ctx.shadowBlur = 12;
+
+          const r = cell * 0.19;
+          if (sym === 'phone') {
+            ctx.beginPath();
+            ctx.moveTo(-r * 0.6, -r * 0.8);
+            ctx.quadraticCurveTo(-r * 0.9, 0, r * 0.6, r * 0.8);
+            ctx.lineTo(r * 0.85, r * 0.5);
+            ctx.lineTo(r * 0.45, r * 0.25);
+            ctx.lineTo(r * 0.2, r * 0.4);
+            ctx.quadraticCurveTo(-r * 0.2, r * 0.1, -r * 0.35, -r * 0.2);
+            ctx.lineTo(-r * 0.2, -r * 0.45);
+            ctx.lineTo(-r * 0.45, -r * 0.85);
+            ctx.closePath();
+            ctx.stroke();
+          } else if (sym === 'chat') {
+            ctx.beginPath();
+            ctx.arc(0, -r * 0.08, r * 0.85, 0.2 * Math.PI, 1.85 * Math.PI);
+            ctx.lineTo(-r * 0.75, r * 0.75);
+            ctx.closePath();
+            ctx.stroke();
+          } else if (sym === 'globe') {
+            ctx.beginPath();
+            ctx.arc(0, 0, r * 0.85, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.ellipse(0, 0, r * 0.4, r * 0.85, 0, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(-r * 0.85, 0);
+            ctx.lineTo(r * 0.85, 0);
+            ctx.stroke();
+          } else if (sym === 'camera') {
+            ctx.strokeRect(-r * 0.85, -r * 0.55, r * 1.7, r * 1.2);
+            ctx.beginPath();
+            ctx.arc(0, r * 0.05, r * 0.34, 0, Math.PI * 2);
+            ctx.stroke();
+          } else if (sym === 'terminal') {
+            ctx.beginPath();
+            ctx.moveTo(-r * 0.65, -r * 0.45);
+            ctx.lineTo(-r * 0.1, 0);
+            ctx.lineTo(-r * 0.65, r * 0.45);
+            ctx.moveTo(r * 0.05, r * 0.45);
+            ctx.lineTo(r * 0.7, r * 0.45);
+            ctx.stroke();
+          } else if (sym === 'music') {
+            ctx.beginPath();
+            ctx.arc(-r * 0.35, r * 0.45, r * 0.26, 0, Math.PI * 2);
+            ctx.arc(r * 0.4, r * 0.3, r * 0.26, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(-r * 0.1, r * 0.45);
+            ctx.lineTo(-r * 0.1, -r * 0.6);
+            ctx.lineTo(r * 0.65, -r * 0.75);
+            ctx.lineTo(r * 0.65, r * 0.3);
+            ctx.stroke();
+          } else if (sym === 'pin') {
+            ctx.beginPath();
+            ctx.arc(0, -r * 0.2, r * 0.52, Math.PI, 0);
+            ctx.lineTo(0, r * 0.85);
+            ctx.closePath();
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(0, -r * 0.2, r * 0.18, 0, Math.PI * 2);
+            ctx.fill();
+          } else {
+            ctx.beginPath();
+            ctx.arc(0, 0, r * 0.45, 0, Math.PI * 2);
+            ctx.stroke();
+            for (let k = 0; k < 8; k++) {
+              const a = (k / 8) * Math.PI * 2;
+              ctx.beginPath();
+              ctx.moveTo(Math.cos(a) * r * 0.6, Math.sin(a) * r * 0.6);
+              ctx.lineTo(Math.cos(a) * r * 0.88, Math.sin(a) * r * 0.88);
+              ctx.stroke();
+            }
+          }
+          ctx.restore();
+        });
+
+        const tex = new THREE.CanvasTexture(canvas);
+        tex.colorSpace = THREE.SRGBColorSpace;
+        return tex;
+      }
+
+      const iconAtlasTex = createIconAtlasTexture();
+      const MAX_NODES = 16;
+      const PARTICLES_PER_NODE = 26;
+
+      // DRAW CALL 5: Плоскости глифов в центре каждого узла (InstancedMesh)
+      const glyphPlaneGeo = new THREE.PlaneGeometry(0.46, 0.46);
+      const glyphInstancedGeo = new THREE.InstancedBufferGeometry().copy(glyphPlaneGeo);
+      const glyphIndexAttr = new Float32Array(MAX_NODES);
+      const glyphHighlightAttr = new Float32Array(MAX_NODES);
+      for (let i = 0; i < MAX_NODES; i++) {
+        glyphIndexAttr[i] = i % 8;
+        glyphHighlightAttr[i] = 0.0;
+      }
+      glyphInstancedGeo.setAttribute('aGlyphIndex', new THREE.InstancedBufferAttribute(glyphIndexAttr, 1));
+      glyphInstancedGeo.setAttribute('aHighlight', new THREE.InstancedBufferAttribute(glyphHighlightAttr, 1));
+
+      const glyphMat = new THREE.ShaderMaterial({
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        uniforms: {
+          uAtlas: { value: iconAtlasTex },
+          uIntensity: sharedUniforms.uIntensity
+        },
+        vertexShader: `
+          attribute float aGlyphIndex;
+          attribute float aHighlight;
+          varying vec2 vUv;
+          varying float vHighlight;
+          varying float vDepthFade;
+          void main() {
+            vHighlight = aHighlight;
+            float col = mod(aGlyphIndex, 4.0);
+            float row = floor(aGlyphIndex / 4.0);
+            // Переворачиваем row для CanvasTexture
+            vUv = vec2((col + uv.x) * 0.25, 1.0 - ((row + (1.0 - uv.y)) * 0.25));
+
+            // Всегда поворачиваем глиф лицом к камере (billboard) с сохранением 3D-позиции инстанса
+            vec4 worldCenter = modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+            vec4 mvCenter = viewMatrix * worldCenter;
+            float scale = 1.0 + aHighlight * 0.28;
+            mvCenter.xy += position.xy * scale;
+
+            // Плавное атмосферное затухание, когда узел уходит за центральное ядро
+            vDepthFade = smoothstep(-2.4, 1.4, worldCenter.z);
+            gl_Position = projectionMatrix * mvCenter;
+          }
+        `,
+        fragmentShader: `
+          precision mediump float;
+          uniform sampler2D uAtlas;
+          uniform float uIntensity;
+          varying vec2 vUv;
+          varying float vHighlight;
+          varying float vDepthFade;
+          void main() {
+            vec4 tex = texture2D(uAtlas, vUv);
+            if (tex.a < 0.02) discard;
+            float alpha = tex.a * (0.45 + 0.55 * vDepthFade) * (1.0 + vHighlight * 0.4);
+            vec3 col = tex.rgb * uIntensity * (1.0 + vHighlight * 0.6);
+            gl_FragColor = vec4(col, clamp(alpha, 0.0, 1.0));
+          }
+        `
+      });
+
+      const glyphInstancedMesh = new THREE.InstancedMesh(glyphInstancedGeo, glyphMat, MAX_NODES);
+      glyphInstancedMesh.count = appNodes.length;
+      glyphInstancedMesh.frustumCulled = false;
+      coreRoot.add(glyphInstancedMesh);
+
+      // DRAW CALL 6: SWARM NODES — Рой заряженных микрочастиц вокруг каждого приложения
+      const totalSwarmPoints = MAX_NODES * PARTICLES_PER_NODE;
+      const swarmGeo = new THREE.BufferGeometry();
+      const swarmPos = new Float32Array(totalSwarmPoints * 3);
+      const swarmNodeIdx = new Float32Array(totalSwarmPoints);
+      const swarmOrbit = new Float32Array(totalSwarmPoints * 4); // [orbitR, phase, speed, normLocalIdx]
+
+      for (let n = 0; n < MAX_NODES; n++) {
+        for (let p = 0; p < PARTICLES_PER_NODE; p++) {
+          const idx = n * PARTICLES_PER_NODE + p;
+          swarmNodeIdx[idx] = n;
+          swarmOrbit[idx * 4]     = 0.14 + Math.random() * 0.14; // Радиус вихря вокруг иконки
+          swarmOrbit[idx * 4 + 1] = Math.random() * Math.PI * 2;
+          swarmOrbit[idx * 4 + 2] = (1.6 + Math.random() * 2.2) * (p % 2 === 0 ? 1 : -1);
+          swarmOrbit[idx * 4 + 3] = p / PARTICLES_PER_NODE;
+        }
+      }
+
+      const nodeCentersUniform = new Float32Array(MAX_NODES * 4); // [x, y, z, highlight]
+      swarmGeo.setAttribute('position', new THREE.BufferAttribute(swarmPos, 3));
+      swarmGeo.setAttribute('aNodeIdx', new THREE.BufferAttribute(swarmNodeIdx, 1));
+      swarmGeo.setAttribute('aSwarmOrbit', new THREE.BufferAttribute(swarmOrbit, 4));
+
+      const swarmMat = new THREE.ShaderMaterial({
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        uniforms: {
+          uTime: sharedUniforms.uTime,
+          uPixelRatio: sharedUniforms.uPixelRatio,
+          uSwarmRatio: sharedUniforms.uSwarmRatio,
+          uIntensity: sharedUniforms.uIntensity,
+          uHueShift: sharedUniforms.uHueShift,
+          uNodeCenters: { value: nodeCentersUniform },
+          uActiveNodeCount: { value: appNodes.length }
+        },
+        vertexShader: `
+          attribute float aNodeIdx;
+          attribute vec4 aSwarmOrbit;
+          uniform float uTime;
+          uniform float uPixelRatio;
+          uniform float uSwarmRatio;
+          uniform vec4 uNodeCenters[${MAX_NODES}];
+          uniform float uActiveNodeCount;
+          varying float vAlpha;
+          varying float vHighlight;
+
+          void main() {
+            if (aNodeIdx >= uActiveNodeCount || aSwarmOrbit.w > uSwarmRatio) {
+              vAlpha = 0.0;
+              gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+              gl_PointSize = 0.0;
+              return;
+            }
+
+            vec4 nodeData = uNodeCenters[int(aNodeIdx)];
+            vec3 center = nodeData.xyz;
+            vHighlight = nodeData.w;
+
+            // Вихревое 3D-вращение частиц роя вокруг центра иконки
+            float angle = aSwarmOrbit.y + uTime * aSwarmOrbit.z;
+            float tilt = sin(uTime * 1.3 + aSwarmOrbit.y * 2.0) * 0.65;
+            float r = aSwarmOrbit.x * (1.0 + vHighlight * 0.35 + sin(uTime * 3.0 + aSwarmOrbit.y) * 0.12);
+
+            vec3 offset = vec3(
+              cos(angle) * r,
+              sin(angle) * r * cos(tilt),
+              sin(angle) * r * sin(tilt)
+            );
+
+            vec4 worldPos = modelMatrix * vec4(center + offset, 1.0);
+            vec4 mvPos = viewMatrix * worldPos;
+
+            float depthFade = smoothstep(-2.4, 1.4, worldPos.z);
+            float twinkle = 0.55 + 0.45 * sin(uTime * 4.2 + aSwarmOrbit.y * 3.0);
+            vAlpha = (0.35 + 0.65 * depthFade) * twinkle * (1.0 + vHighlight * 0.5);
+
+            gl_PointSize = (13.0 + aSwarmOrbit.w * 10.0) * uPixelRatio * (1.5 / max(-mvPos.z, 0.5)) * (1.0 + vHighlight * 0.3);
+            gl_Position = projectionMatrix * mvPos;
+          }
+        `,
+        fragmentShader: `
+          precision mediump float;
+          uniform float uIntensity;
+          uniform float uHueShift;
+          varying float vAlpha;
+          varying float vHighlight;
+          void main() {
+            if (vAlpha <= 0.01) discard;
+            float d = length(gl_PointCoord - vec2(0.5)) * 2.0;
+            if (d > 1.0) discard;
+            float spark = exp(-d * d * 7.0);
+            float halo = pow(1.0 - d, 2.0) * 0.5;
+            vec3 cyan  = vec3(0.05, 0.82 + uHueShift * 0.3, 1.0);
+            vec3 white = vec3(0.95, 0.99, 1.0);
+            vec3 col = mix(cyan, white, spark + vHighlight * 0.4) * uIntensity;
+            gl_FragColor = vec4(col, (spark + halo) * vAlpha);
+          }
+        `
+      });
+
+      const swarmPointsMesh = new THREE.Points(swarmGeo, swarmMat);
+      swarmPointsMesh.frustumCulled = false;
+      coreRoot.add(swarmPointsMesh);
+
+      // Предвыделенные объекты для обновления орбит без GC-нагрузки
+      const _dummy = new THREE.Object3D();
+      const _euler = new THREE.Euler();
+      const _pos = new THREE.Vector3();
+      const _worldPos = new THREE.Vector3();
+      const _projVec = new THREE.Vector3();
+
+      function updateOrbitalNodes(dt) {
+        const count = Math.min(appNodes.length, MAX_NODES);
+        glyphInstancedMesh.count = count;
+        swarmMat.uniforms.uActiveNodeCount.value = count;
+
+        if (state.activeNodePulse > 0) {
+          state.activeNodePulse = Math.max(0, state.activeNodePulse - dt * 1.8);
+          if (state.activeNodePulse === 0) state.activeNodeIndex = -1;
+        }
+
+        for (let i = 0; i < count; i++) {
+          const node = appNodes[i];
+          node.angle += dt * node.speed * (state.isIdlePowerSave ? 0.5 : 1.0);
+
+          _pos.set(Math.cos(node.angle) * node.radius, 0, Math.sin(node.angle) * node.radius);
+          _euler.set(node.tiltX, 0, node.tiltZ);
+          _pos.applyEuler(_euler);
+
+          const hl = (i === state.activeNodeIndex) ? Math.sin(state.activeNodePulse * Math.PI) : 0.0;
+          glyphHighlightAttr[i] = hl;
+
+          _dummy.position.copy(_pos);
+          _dummy.updateMatrix();
+          glyphInstancedMesh.setMatrixAt(i, _dummy.matrix);
+
+          nodeCentersUniform[i * 4]     = _pos.x;
+          nodeCentersUniform[i * 4 + 1] = _pos.y;
+          nodeCentersUniform[i * 4 + 2] = _pos.z;
+          nodeCentersUniform[i * 4 + 3] = hl;
+        }
+        glyphInstancedMesh.instanceMatrix.needsUpdate = true;
+        glyphInstancedGeo.attributes.aHighlight.needsUpdate = true;
+      }
+
+      // -----------------------------------------------------------------------
+      // 8. ОБРАБОТКА ЖЕСТОВ И НАЖАТИЙ НА УЗЛЫ ПРИЛОЖЕНИЙ
+      // -----------------------------------------------------------------------
+      function registerActivity() {
+        state.lastInteractionTime = performance.now();
+        if (state.isIdlePowerSave) {
+          state.isIdlePowerSave = false;
+          frameTimeWindow.length = 0;
+        }
+      }
+
+      function handleNodeTap(clientX, clientY) {
+        const w = window.innerWidth;
+        const h = window.innerHeight;
+        let bestIdx = -1;
+        let bestDist = 44; // Радиус попадания в пикселях
+
+        const count = Math.min(appNodes.length, MAX_NODES);
+        for (let i = 0; i < count; i++) {
+          _worldPos.set(
+            nodeCentersUniform[i * 4],
+            nodeCentersUniform[i * 4 + 1],
+            nodeCentersUniform[i * 4 + 2]
+          ).applyMatrix4(coreRoot.matrixWorld);
+
+          // Не выбираем иконку, если она глубоко за ядром
+          if (_worldPos.z < -0.6) continue;
+
+          _projVec.copy(_worldPos).project(camera);
+          const sx = (_projVec.x * 0.5 + 0.5) * w;
+          const sy = (-_projVec.y * 0.5 + 0.5) * h;
+          const dist = Math.hypot(clientX - sx, clientY - sy);
+
+          if (dist < bestDist) {
+            bestDist = dist;
+            bestIdx = i;
+          }
+        }
+
+        if (bestIdx !== -1) {
+          state.activeNodeIndex = bestIdx;
+          state.activeNodePulse = 1.0;
+          const selected = appNodes[bestIdx];
+          // Вызов коллбэка в Android (если подключен JavascriptInterface)
+          if (window.AndroidLauncher && typeof window.AndroidLauncher.onNodeClick === 'function') {
+            window.AndroidLauncher.onNodeClick(selected.id);
+          }
+        }
+      }
+
+      viewportEl.addEventListener('pointerdown', (e) => {
+        registerActivity();
+        state.pointerDown = true;
+        state.pointerMoved = false;
+        state.downX = state.lastX = e.clientX;
+        state.downY = state.lastY = e.clientY;
+      }, { passive: true });
+
+      window.addEventListener('pointermove', (e) => {
+        if (!state.pointerDown) return;
+        registerActivity();
+        const dx = e.clientX - state.lastX;
+        const dy = e.clientY - state.lastY;
+        if (Math.hypot(e.clientX - state.downX, e.clientY - state.downY) > 10) {
+          state.pointerMoved = true;
+        }
+        state.lastX = e.clientX;
+        state.lastY = e.clientY;
+        state.targetRotY += dx * 0.0065;
+        state.targetRotX = Math.max(-0.85, Math.min(0.85, state.targetRotX + dy * 0.0065));
+      }, { passive: true });
+
+      window.addEventListener('pointerup', (e) => {
+        if (state.pointerDown && !state.pointerMoved) {
+          handleNodeTap(e.clientX, e.clientY);
+        }
+        state.pointerDown = false;
+      }, { passive: true });
+
+      // -----------------------------------------------------------------------
+      // 9. АДАПТИВНЫЙ КОНТРОЛЬ КАЧЕСТВА (AUTO / HIGH / MEDIUM / LOW)
+      // -----------------------------------------------------------------------
+      const TIER_ORDER = ['low', 'medium', 'high'];
+      const frameTimeWindow = [];
+      const WINDOW_SIZE = 90;
+      let cooldownFrames = 0;
+
+      function applyQualityTier(tierKey) {
+        const cfg = QUALITY_PROFILES[tierKey] || QUALITY_PROFILES.medium;
+        state.activeTier = tierKey;
+        const dpr = Math.min(window.devicePixelRatio || 1, cfg.maxPixelRatio);
+        renderer.setPixelRatio(dpr);
+        sharedUniforms.uPixelRatio.value = dpr;
+        sharedUniforms.uDetail.value = cfg.detail;
+        sharedUniforms.uParticleRatio.value = cfg.particleRatio;
+        sharedUniforms.uSwarmRatio.value = cfg.swarmRatio;
+      }
+
+      function evaluateQualityGovernor(frameMs) {
+        if (state.mode !== 'auto' || state.isIdlePowerSave) return;
+        if (cooldownFrames > 0) { cooldownFrames--; return; }
+
+        frameTimeWindow.push(frameMs);
+        if (frameTimeWindow.length < WINDOW_SIZE) return;
+
+        let sum = 0;
+        for (let i = 0; i < WINDOW_SIZE; i++) sum += frameTimeWindow[i];
+        const avgMs = sum / WINDOW_SIZE;
+        frameTimeWindow.length = 0;
+
+        const idx = TIER_ORDER.indexOf(state.activeTier);
+        if (avgMs > 19.5 && idx > 0) {
+          applyQualityTier(TIER_ORDER[idx - 1]);
+          cooldownFrames = 120;
+        } else if (avgMs < 12.5 && idx < TIER_ORDER.length - 1) {
+          applyQualityTier(TIER_ORDER[idx + 1]);
+          cooldownFrames = 180;
+        }
+      }
+
+      // -----------------------------------------------------------------------
+      // 10. ГЛАВНЫЙ ЦИКЛ РЕНДЕРИНГА И ЖИЗНЕННЫЙ ЦИКЛ
+      // -----------------------------------------------------------------------
+      let rafId = null;
+      let lastFrameNow = performance.now();
+      let idleAccumulator = 0;
+
+      function renderLoop(now) {
+        if (!state.isRunning || state.isSuspended) {
+          rafId = null;
+          return;
+        }
+        rafId = requestAnimationFrame(renderLoop);
+
+        const dtMs = Math.min(now - lastFrameNow, 100);
+        lastFrameNow = now;
+
+        if (!state.isIdlePowerSave && (now - state.lastInteractionTime) > 8000) {
+          state.isIdlePowerSave = true;
+        }
+
+        if (state.isIdlePowerSave) {
+          idleAccumulator += dtMs;
+          if (idleAccumulator < 32.5) return;
+          idleAccumulator %= 32.5;
+        }
+
+        const dtSec = dtMs * 0.001;
+        const tempoFactor = state.isIdlePowerSave ? 0.65 : 1.0;
+
+        const targetPreset = AI_STATES[state.aiStateKey] || AI_STATES.idle;
+        const lerpRate = Math.min(1.0, dtSec * 5.5);
+
+        state.currentSpeed     += (targetPreset.speed - state.currentSpeed) * lerpRate;
+        state.currentIntensity += (targetPreset.intensity - state.currentIntensity) * lerpRate;
+        state.currentPulseAmp  += (targetPreset.pulseAmp - state.currentPulseAmp) * lerpRate;
+        state.currentHueShift  += (targetPreset.hueShift - state.currentHueShift) * lerpRate;
+        state.currentScale     += (targetPreset.scale - state.currentScale) * lerpRate;
+
+        state.simTime += dtSec * state.currentSpeed * tempoFactor;
+        const t = state.simTime;
+
+        if (t >= state.nextSurgeAt && state.surgeValue <= 0.001) {
+          state.surgeValue = 1.0;
+          state.nextSurgeAt = t + 3.2 + Math.random() * 4.0;
+          sharedUniforms.uSurgeDir.value.set(Math.random() * 2 - 1, Math.random() * 2 - 1, Math.random() * 2 - 1).normalize();
+        }
+        if (state.surgeValue > 0) {
+          state.surgeValue = Math.max(0, state.surgeValue - dtSec * 1.4);
+        }
+
+        sharedUniforms.uTime.value = t;
+        sharedUniforms.uIntensity.value = state.currentIntensity;
+        sharedUniforms.uPulseAmp.value = state.currentPulseAmp;
+        sharedUniforms.uHueShift.value = state.currentHueShift;
+        sharedUniforms.uSurge.value = Math.sin(state.surgeValue * Math.PI);
+
+        if (!state.pointerDown) {
+          state.targetRotY += dtSec * 0.14 * tempoFactor;
+          state.targetRotX *= (1.0 - dtSec * 1.2);
+        }
+        state.currentRotX += (state.targetRotX - state.currentRotX) * Math.min(1.0, dtSec * 8.0);
+        state.currentRotY += (state.targetRotY - state.currentRotY) * Math.min(1.0, dtSec * 8.0);
+
+        coreRoot.rotation.set(state.currentRotX, state.currentRotY, 0);
+        coreRoot.scale.setScalar(state.currentScale);
+
+        updateOrbitalNodes(dtSec * state.currentSpeed);
+        renderer.render(scene, camera);
+
+        if (!state.isIdlePowerSave) {
+          evaluateQualityGovernor(dtMs);
+        }
+      }
+
+      function startLoop() {
+        if (rafId === null && state.isRunning && !state.isSuspended) {
+          lastFrameNow = performance.now();
+          rafId = requestAnimationFrame(renderLoop);
+        }
+      }
+
+      function stopLoop() {
+        if (rafId !== null) {
+          cancelAnimationFrame(rafId);
+          rafId = null;
+        }
+      }
+
+      function handleSuspend() { state.isSuspended = true; stopLoop(); }
+      function handleResume() { if (!document.hidden) { state.isSuspended = false; registerActivity(); startLoop(); } }
+
+      document.addEventListener('visibilitychange', () => document.hidden ? handleSuspend() : handleResume());
+      window.addEventListener('pagehide', handleSuspend);
+      window.addEventListener('pageshow', handleResume);
+
+      window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        applyQualityTier(state.activeTier);
+      });
+
+      // -----------------------------------------------------------------------
+      // 11. ПУБЛИЧНЫЙ API ДЛЯ ANDROID KOTLIN BRIDGE
+      // -----------------------------------------------------------------------
+      window.JarvisCoreAPI = {
+        setTheme(themeName) {
+          registerActivity();
+          return String(themeName || '').toLowerCase() === 'plasma';
+        },
+        setQuality(quality) {
+          const key = String(quality || '').toLowerCase();
+          registerActivity();
+          frameTimeWindow.length = 0;
+          if (key === 'auto') {
+            state.mode = 'auto';
+            applyQualityTier('medium');
+          } else if (QUALITY_PROFILES[key]) {
+            state.mode = key;
+            applyQualityTier(key);
+          }
+        },
+        setState(stateName) {
+          const key = String(stateName || '').toLowerCase();
+          if (AI_STATES[key]) {
+            registerActivity();
+            state.aiStateKey = key;
+          }
+        },
+        setNodes(nodesArray) {
+          if (Array.isArray(nodesArray)) {
+            appNodes = nodesArray.slice(0, MAX_NODES);
+            for (let i = 0; i < appNodes.length; i++) {
+              glyphIndexAttr[i] = appNodes[i].glyphIndex ?? (i % 8);
+            }
+            glyphInstancedGeo.attributes.aGlyphIndex.needsUpdate = true;
+          }
+        },
+        pause() {
+          state.isRunning = false;
+          stopLoop();
+        },
+        resume() {
+          state.isRunning = true;
+          state.isSuspended = false;
+          registerActivity();
+          startLoop();
+        },
+        dispose() {
+          stopLoop();
+          innerCoreGeo.dispose(); innerCoreMat.dispose();
+          outerShellGeo.dispose(); outerShellMat.dispose();
+          ribbonsGeo.dispose(); ribbonsMat.dispose();
+          bgParticleGeo.dispose(); bgParticleMat.dispose();
+          glyphPlaneGeo.dispose(); glyphInstancedGeo.dispose(); glyphMat.dispose();
+          swarmGeo.dispose(); swarmMat.dispose();
+          iconAtlasTex.dispose();
+          renderer.dispose();
+        }
+      };
+
+      applyQualityTier('medium');
+      startLoop();
+    })();
+  </script>
+</body>
+</html>
