@@ -19,6 +19,7 @@ class JarvisCoreBridge(private val webView: WebView) {
     fun setQuality(quality: CoreQuality) = evaluate("JarvisCoreAPI.setQuality('${quality.value}')")
     fun setVisualSettings(size: Float, brightness: Float, intensity: Float, hue: Float, glow: Float) = evaluate("JarvisCoreAPI.setVisualSettings($size,$brightness,$intensity,$hue,$glow)")
     fun setAssistantState(state: AssistantState) = evaluate("JarvisCoreAPI.setState('${state.value}')")
+    fun rotateCore(dx: Float, dy: Float) = evaluate("JarvisCoreAPI.rotate(${dx * 0.0065f},${dy * 0.0065f})")
     fun pause() = evaluate("JarvisCoreAPI.pause()")
     fun resume() = evaluate("JarvisCoreAPI.resume()")
 
