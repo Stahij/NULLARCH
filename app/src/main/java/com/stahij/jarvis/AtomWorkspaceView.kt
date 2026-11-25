@@ -36,7 +36,8 @@ class AtomWorkspaceView(
     private val onOpenSettings: () -> Unit,
     private val onOpenDrawer: () -> Unit,
     private val onOpenLab: () -> Unit,
-    private val onAppOptions: (LauncherApp) -> Unit
+    private val onAppOptions: (LauncherApp) -> Unit,
+    private val onRotateCore: (Float, Float) -> Unit
 ) : View(context) {
     private data class OrbitalItem(
         val app: LauncherApp,
@@ -91,10 +92,6 @@ class AtomWorkspaceView(
             val dy = e2.y - e1.y
             if (abs(dy) > abs(dx) && dy < -42f * density && e1.y > height - 112f * density && e1.x < width * .38f) {
                 onOpenDrawer()
-                return true
-            }
-            if (abs(dx) > 70f * density && abs(dx) > abs(dy)) {
-                changePage(if (dx < 0) 1 else -1)
                 return true
             }
             return false
@@ -251,12 +248,13 @@ class AtomWorkspaceView(
             }
             MotionEvent.ACTION_MOVE -> {
                 if (selected == null) {
+                    if (downY < height - 68f * density) onRotateCore(event.x - downX, event.y - downY)
                     gestureDetector.onTouchEvent(event)
                     return true
                 }
                 val dx = event.x - downX
                 val dy = event.y - downY
-                if (abs(dx) + abs(dy) > 14f * density) {
+                if (abs(dx) + abs(dy) > 24f * density) {
                     dragging = true
                     val item = selected!!
                     val cx = width * .5f
@@ -275,7 +273,8 @@ class AtomWorkspaceView(
                 if (selected == null) {
                     val dx = event.x - downX
                     val dy = event.y - downY
-                    val horizontalSwipe = abs(dx) > 55f * density && abs(dx) > abs(dy)
+                    val inPageGestureZone = downY >= height - 68f * density
+                    val horizontalSwipe = inPageGestureZone && abs(dx) > 42f * density && abs(dx) > abs(dy)
                     val verticalSwipe = dy < -38f * density &&
                         abs(dy) > abs(dx) &&
                         downY > height - 112f * density &&
