@@ -85,7 +85,8 @@
         surgeValue: 0,
         nextSurgeAt: 2.5,
         activeNodeIndex: -1,
-        activeNodePulse: 0
+        activeNodePulse: 0,
+        labSize: 1.0, labBrightness: 1.0, labIntensity: 1.0, labHue: 0.0, labGlow: 1.0
       };
 
       // -----------------------------------------------------------------------
@@ -680,6 +681,7 @@
       const glyphInstancedMesh = new THREE.InstancedMesh(glyphInstancedGeo, glyphMat, MAX_NODES);
       glyphInstancedMesh.count = appNodes.length;
       glyphInstancedMesh.frustumCulled = false;
+      glyphInstancedMesh.visible = false; // Реальные Android-иконки отображаются нативным слоем лаунчера
       coreRoot.add(glyphInstancedMesh);
 
       // DRAW CALL 6: SWARM NODES — Рой заряженных микрочастиц вокруг каждого приложения
@@ -784,7 +786,7 @@
       });
 
       const swarmPointsMesh = new THREE.Points(swarmGeo, swarmMat);
-      swarmPointsMesh.frustumCulled = false;
+      swarmPointsMesh.visible = false; // Не рисуем дублирующие псевдо-иконки и их рои
       coreRoot.add(swarmPointsMesh);
 
       // Предвыделенные объекты для обновления орбит без GC-нагрузки
@@ -1000,9 +1002,9 @@
         }
 
         sharedUniforms.uTime.value = t;
-        sharedUniforms.uIntensity.value = state.currentIntensity;
+        sharedUniforms.uIntensity.value = state.currentIntensity * state.labBrightness * state.labIntensity * state.labGlow;
         sharedUniforms.uPulseAmp.value = state.currentPulseAmp;
-        sharedUniforms.uHueShift.value = state.currentHueShift;
+        sharedUniforms.uHueShift.value = state.currentHueShift + state.labHue;
         sharedUniforms.uSurge.value = Math.sin(state.surgeValue * Math.PI);
 
         if (!state.pointerDown) {
@@ -1013,7 +1015,7 @@
         state.currentRotY += (state.targetRotY - state.currentRotY) * Math.min(1.0, dtSec * 8.0);
 
         coreRoot.rotation.set(state.currentRotX, state.currentRotY, 0);
-        coreRoot.scale.setScalar(state.currentScale);
+        coreRoot.scale.setScalar(state.currentScale * state.labSize);
 
         updateOrbitalNodes(dtSec * state.currentSpeed);
         renderer.render(scene, camera);
@@ -1070,6 +1072,15 @@
             state.mode = key;
             applyQualityTier(key);
           }
+        },
+        setVisualSettings(size, brightness, intensity, hue, glow) {
+          registerActivity();
+          state.labSize = Math.max(0.65, Math.min(1.4, Number(size) || 1));
+          state.labBrightness = Math.max(0.25, Math.min(1.5, Number(brightness) || 1));
+          state.labIntensity = Math.max(0.25, Math.min(1.7, Number(intensity) || 1));
+          state.labHue = Math.max(-0.35, Math.min(0.35, Number(hue) || 0));
+          state.labGlow = Math.max(0.25, Math.min(1.75, Number(glow) || 1));
+          return true;
         },
         setState(stateName) {
           const key = String(stateName || '').toLowerCase();
