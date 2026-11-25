@@ -86,6 +86,7 @@ class LauncherActivity : Activity() {
             onAppOptions = { showAppOptions(it) },
             onRotateCore = { dx, dy -> coreView.bridge.rotateCore(dx, dy) }
         )
+        applyLabSettings(loadLabSettings())
         val root = FrameLayout(this).apply {
             setBackgroundColor(Color.rgb(3, 8, 20))
             addView(coreView, FrameLayout.LayoutParams(-1, -1))
@@ -94,73 +95,239 @@ class LauncherActivity : Activity() {
         setContentView(root)
     }
 
+    private data class CoreLabSettings(
+        val coreSize: Int = 500, val brightness: Int = 700, val intensity: Int = 700,
+        val iconSize: Int = 500, val orbitScale: Int = 500, val glow: Int = 650,
+        val hue: Float = 0.56f, val saturation: Float = 0.9f
+    )
+
+    private val labPrefs by lazy { getSharedPreferences("nullarch_core_lab", MODE_PRIVATE) }
+
+    private fun encodeLabSettings(s: CoreLabSettings) = org.json.JSONObject()
+        .put("coreSize", s.coreSize).put("brightness", s.brightness).put("intensity", s.intensity)
+        .put("iconSize", s.iconSize).put("orbitScale", s.orbitScale).put("glow", s.glow)
+        .put("hue", s.hue.toDouble()).put("saturation", s.saturation.toDouble())
+
+    private fun decodeLabSettings(j: org.json.JSONObject): CoreLabSettings {
+        val d = CoreLabSettings()
+        return CoreLabSettings(
+            j.optInt("coreSize", d.coreSize).coerceIn(0, 1000),
+            j.optInt("brightness", d.brightness).coerceIn(0, 1000),
+            j.optInt("intensity", d.intensity).coerceIn(0, 1000),
+            j.optInt("iconSize", d.iconSize).coerceIn(0, 1000),
+            j.optInt("orbitScale", d.orbitScale).coerceIn(0, 1000),
+            j.optInt("glow", d.glow).coerceIn(0, 1000),
+            j.optDouble("hue", d.hue.toDouble()).toFloat().coerceIn(0f, 1f),
+            j.optDouble("saturation", d.saturation.toDouble()).toFloat().coerceIn(.15f, 1f)
+        )
+    }
+
+    private fun loadLabSettings(): CoreLabSettings = try {
+        val raw = labPrefs.getString("current_settings", null)
+        if (raw.isNullOrBlank()) CoreLabSettings() else decodeLabSettings(org.json.JSONObject(raw))
+    } catch (_: Exception) { CoreLabSettings() }
+
+    private fun saveLabSettings(s: CoreLabSettings) {
+        labPrefs.edit().putString("current_settings", encodeLabSettings(s).toString()).apply()
+    }
+
+    private fun loadLabProfiles(): LinkedHashMap<String, CoreLabSettings> {
+        val result = linkedMapOf<String, CoreLabSettings>()
+        try {
+            val array = org.json.JSONArray(labPrefs.getString("profiles", "[]"))
+            for (i in 0 until array.length()) {
+                val item = array.optJSONObject(i) ?: continue
+                val name = item.optString("name").trim()
+                val settings = item.optJSONObject("settings") ?: continue
+                if (name.isNotBlank()) result[name] = decodeLabSettings(settings)
+            }
+        } catch (_: Exception) { }
+        return result
+    }
+
+    private fun saveLabProfiles(profiles: Map<String, CoreLabSettings>) {
+        val array = org.json.JSONArray()
+        profiles.forEach { (name, settings) ->
+            array.put(org.json.JSONObject().put("name", name).put("settings", encodeLabSettings(settings)))
+        }
+        labPrefs.edit().putString("profiles", array.toString()).apply()
+    }
+
+    private fun applyLabSettings(s: CoreLabSettings) {
+        coreView.bridge.setVisualSettings(
+            .65f + s.coreSize / 1000f * .75f,
+            .25f + s.brightness / 1000f * 1.25f,
+            .25f + s.intensity / 1000f * 1.45f,
+            s.hue,
+            .25f + s.glow / 1000f * 1.5f,
+            s.saturation
+        )
+        workspace.setLabIconScale(.65f + s.iconSize / 1000f * .85f)
+        workspace.setLabOrbitScale(.65f + s.orbitScale / 1000f * .8f)
+    }
+
+    private fun promptSaveLabProfile(settings: CoreLabSettings) {
+        val nameInput = EditText(this).apply {
+            hint = "Например: Холодная плазма"
+            setSingleLine(true)
+            setTextColor(Color.WHITE)
+            setHintTextColor(Color.GRAY)
+        }
+        val wrapper = LinearLayout(this).apply {
+            setPadding(dp(20), dp(8), dp(20), 0)
+            addView(nameInput, LinearLayout.LayoutParams(-1, dp(48)))
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Сохранить профиль Plasma Core")
+            .setView(wrapper)
+            .setNegativeButton("Отмена", null)
+            .setPositiveButton("Сохранить") { _, _ ->
+                val name = nameInput.text.toString().trim().take(40)
+                if (name.isBlank()) {
+                    Toast.makeText(this, "Укажи название профиля", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                val profiles = loadLabProfiles()
+                profiles[name] = settings
+                saveLabProfiles(profiles)
+                Toast.makeText(this, "Профиль «${name}» сохранён", Toast.LENGTH_SHORT).show()
+            }
+            .show()
+    }
+
+    private fun showLabProfiles(onApply: (CoreLabSettings) -> Unit) {
+        val profiles = loadLabProfiles()
+        if (profiles.isEmpty()) {
+            Toast.makeText(this, "Пока нет сохранённых профилей", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val names = profiles.keys.toList()
+        AlertDialog.Builder(this)
+            .setTitle("Профили Plasma Core")
+            .setItems(names.toTypedArray()) { _, index ->
+                val name = names[index]
+                AlertDialog.Builder(this)
+                    .setTitle(name)
+                    .setItems(arrayOf("Применить профиль", "Удалить профиль")) { _, action ->
+                        if (action == 0) {
+                            profiles[name]?.let(onApply)
+                        } else {
+                            AlertDialog.Builder(this)
+                                .setMessage("Удалить профиль «${name}»?")
+                                .setNegativeButton("Отмена", null)
+                                .setPositiveButton("Удалить") { _, _ ->
+                                    val updated = loadLabProfiles()
+                                    updated.remove(name)
+                                    saveLabProfiles(updated)
+                                    Toast.makeText(this, "Профиль удалён", Toast.LENGTH_SHORT).show()
+                                }
+                                .show()
+                        }
+                    }
+                    .setNegativeButton("Назад", null)
+                    .show()
+            }
+            .setNegativeButton("Закрыть", null)
+            .show()
+    }
+
     private fun showCoreLab() {
+        val initial = loadLabSettings()
         val dialog = android.app.Dialog(this)
+        val bars = mutableListOf<android.widget.SeekBar>()
+        var selectedHue = initial.hue
+        var selectedSaturation = initial.saturation
+        var palette: View? = null
+        fun snapshot() = CoreLabSettings(
+            bars.getOrNull(0)?.progress ?: initial.coreSize,
+            bars.getOrNull(1)?.progress ?: initial.brightness,
+            bars.getOrNull(2)?.progress ?: initial.intensity,
+            bars.getOrNull(3)?.progress ?: initial.iconSize,
+            bars.getOrNull(4)?.progress ?: initial.orbitScale,
+            bars.getOrNull(5)?.progress ?: initial.glow,
+            selectedHue, selectedSaturation
+        )
+        fun apply() {
+            val settings = snapshot()
+            applyLabSettings(settings)
+            saveLabSettings(settings)
+        }
+
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(18), dp(12), dp(18), dp(12))
+            setPadding(dp(14), dp(8), dp(14), dp(8))
             background = GradientDrawable().apply {
                 setColor(Color.rgb(7, 17, 32))
-                cornerRadii = floatArrayOf(dp(22).toFloat(), dp(22).toFloat(), dp(22).toFloat(), dp(22).toFloat(), 0f, 0f, 0f, 0f)
+                cornerRadii = floatArrayOf(dp(20).toFloat(), dp(20).toFloat(), dp(20).toFloat(), dp(20).toFloat(), 0f, 0f, 0f, 0f)
                 setStroke(dp(1), Color.rgb(35, 105, 139))
             }
         }
         val header = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         header.addView(TextView(this).apply {
-            text = "CORE LAB"; textSize = 15f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE)
-        }, LinearLayout.LayoutParams(0, dp(34), 1f))
+            text = "PLASMA CORE LAB"; textSize = 13f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE)
+        }, LinearLayout.LayoutParams(0, dp(30), 1f))
         header.addView(TextView(this).apply {
-            text = "ГОТОВО"; textSize = 12f; typeface = Typeface.DEFAULT_BOLD; setTextColor(cyan); gravity = Gravity.CENTER
+            text = "ПРОФИЛИ"; textSize = 10f; typeface = Typeface.DEFAULT_BOLD; setTextColor(cyan); gravity = Gravity.CENTER
+            setOnClickListener {
+                showLabProfiles { profile ->
+                    selectedHue = profile.hue
+                    selectedSaturation = profile.saturation
+                    bars.forEachIndexed { index, bar -> bar.progress = profile.toValues()[index] }
+                    palette?.invalidate()
+                    apply()
+                }
+            }
+        }, LinearLayout.LayoutParams(dp(64), dp(30)))
+        header.addView(TextView(this).apply {
+            text = "✕"; textSize = 17f; setTextColor(cyan); gravity = Gravity.CENTER
             setOnClickListener { dialog.dismiss() }
-        }, LinearLayout.LayoutParams(dp(72), dp(34)))
+        }, LinearLayout.LayoutParams(dp(34), dp(30)))
         panel.addView(header)
 
-        val content = android.widget.ScrollView(this)
+        val actionRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        actionRow.addView(TextView(this).apply {
+            text = "Настройки сохраняются автоматически"; textSize = 9f; setTextColor(Color.rgb(132, 160, 181))
+        }, LinearLayout.LayoutParams(0, dp(24), 1f))
+        actionRow.addView(TextView(this).apply {
+            text = "СОХРАНИТЬ ПРОФИЛЬ"; textSize = 9f; typeface = Typeface.DEFAULT_BOLD; setTextColor(cyan)
+            gravity = Gravity.CENTER; setPadding(dp(5), 0, dp(5), 0)
+            setOnClickListener { promptSaveLabProfile(snapshot()) }
+        }, LinearLayout.LayoutParams(-2, dp(24)))
+        panel.addView(actionRow)
+
+        val content = android.widget.ScrollView(this).apply { isFillViewport = false }
         val controls = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         content.addView(controls)
         panel.addView(content, LinearLayout.LayoutParams(-1, 0, 1f))
 
-        val labels = listOf("Размер ядра", "Яркость ядра", "Интенсивность ядра", "Размер иконок", "Масштаб орбит", "Свечение")
-        val defaults = intArrayOf(500, 700, 700, 500, 500, 650)
-        val bars = mutableListOf<android.widget.SeekBar>()
-        var selectedHue = 0.56f
-        var selectedSaturation = 0.9f
-        fun apply() {
-            coreView.bridge.setVisualSettings(
-                .65f + bars[0].progress / 1000f * .75f,
-                .25f + bars[1].progress / 1000f * 1.25f,
-                .25f + bars[2].progress / 1000f * 1.45f,
-                selectedHue,
-                .25f + bars[5].progress / 1000f * 1.5f,
-                selectedSaturation
-            )
-            workspace.setLabIconScale(.65f + bars[3].progress / 1000f * .85f)
-            workspace.setLabOrbitScale(.65f + bars[4].progress / 1000f * .8f)
-        }
+        val labels = listOf("Размер ядра", "Яркость ядра", "Интенсивность", "Размер иконок", "Масштаб орбит", "Свечение")
+        val values = initial.toValues()
         labels.forEachIndexed { index, label ->
             val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-            row.addView(TextView(this).apply { text = label; textSize = 12f; setTextColor(Color.rgb(210, 228, 241)) },
-                LinearLayout.LayoutParams(0, dp(28), 1f))
-            val value = TextView(this).apply { text = "${defaults[index] / 10}%"; textSize = 11f; setTextColor(cyan) }
+            row.addView(TextView(this).apply {
+                text = label; textSize = 10f; setTextColor(Color.rgb(210, 228, 241))
+            }, LinearLayout.LayoutParams(0, dp(22), 1f))
+            val value = TextView(this).apply { text = "${values[index] / 10}%"; textSize = 10f; setTextColor(cyan) }
             row.addView(value)
             controls.addView(row)
-            val bar = android.widget.SeekBar(this).apply { max = 1000; progress = defaults[index] }
+            val bar = android.widget.SeekBar(this).apply { max = 1000; progress = values[index] }
             bar.setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(seekBar: android.widget.SeekBar?, progress: Int, fromUser: Boolean) {
-                    value.text = "${progress / 10}%"; apply()
+                    value.text = "${progress / 10}%"
+                    apply()
                 }
                 override fun onStartTrackingTouch(seekBar: android.widget.SeekBar?) = Unit
                 override fun onStopTrackingTouch(seekBar: android.widget.SeekBar?) = Unit
             })
             bars.add(bar)
-            controls.addView(bar, LinearLayout.LayoutParams(-1, dp(34)))
+            controls.addView(bar, LinearLayout.LayoutParams(-1, dp(28)))
         }
 
         controls.addView(TextView(this).apply {
-            text = "ЦВЕТ И ОТТЕНОК"; textSize = 11f; typeface = Typeface.DEFAULT_BOLD
-            setTextColor(Color.rgb(170, 205, 225)); setPadding(0, dp(5), 0, dp(5))
+            text = "ЦВЕТ И ОТТЕНОК"; textSize = 10f; typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.rgb(170, 205, 225)); setPadding(0, dp(3), 0, dp(3))
         })
-        val palette = object : View(this) {
+        palette = object : View(this) {
             private val p = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
             override fun onDraw(canvas: android.graphics.Canvas) {
                 super.onDraw(canvas)
@@ -175,35 +342,42 @@ class LauncherActivity : Activity() {
                 val markerX = selectedHue * width
                 val markerY = (1f - (selectedSaturation - .15f) / .85f) * height
                 p.color = Color.WHITE; p.style = android.graphics.Paint.Style.STROKE; p.strokeWidth = dp(2).toFloat()
-                canvas.drawCircle(markerX, markerY, dp(7).toFloat(), p)
+                canvas.drawCircle(markerX, markerY, dp(6).toFloat(), p)
                 p.style = android.graphics.Paint.Style.FILL
             }
             override fun onTouchEvent(event: android.view.MotionEvent): Boolean {
                 if (event.action == android.view.MotionEvent.ACTION_DOWN || event.action == android.view.MotionEvent.ACTION_MOVE) {
                     selectedHue = (event.x / width.coerceAtLeast(1)).coerceIn(0f, 1f)
                     selectedSaturation = (1f - event.y / height.coerceAtLeast(1) * .85f).coerceIn(.15f, 1f)
-                    invalidate(); apply(); return true
+                    invalidate()
+                    apply()
+                    return true
                 }
                 return true
             }
         }
-        controls.addView(palette, LinearLayout.LayoutParams(-1, dp(76)))
+        controls.addView(palette, LinearLayout.LayoutParams(-1, dp(54)))
         controls.addView(TextView(this).apply {
-            text = "Цвет — по горизонтали; оттенки — по вертикали"
-            textSize = 10f; setTextColor(Color.rgb(132, 160, 181))
+            text = "Цвет — по горизонтали, насыщенность — по вертикали"
+            textSize = 9f; setTextColor(Color.rgb(132, 160, 181))
         })
+
         val footer = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         footer.addView(TextView(this).apply {
-            text = "СБРОСИТЬ"; textSize = 11f; setTextColor(Color.rgb(150, 190, 210))
-            setPadding(dp(8), dp(8), dp(8), dp(8))
+            text = "СБРОСИТЬ"; textSize = 10f; setTextColor(Color.rgb(150, 190, 210))
+            setPadding(dp(8), dp(5), dp(8), dp(5))
             setOnClickListener {
-                bars.forEachIndexed { i, bar -> bar.progress = defaults[i] }
-                selectedHue = .56f; selectedSaturation = .9f; palette.invalidate(); apply()
+                val defaults = CoreLabSettings()
+                selectedHue = defaults.hue
+                selectedSaturation = defaults.saturation
+                bars.forEachIndexed { index, bar -> bar.progress = defaults.toValues()[index] }
+                palette?.invalidate()
+                apply()
             }
-        }, LinearLayout.LayoutParams(0, dp(38), 1f))
+        }, LinearLayout.LayoutParams(0, dp(28), 1f))
         footer.addView(TextView(this).apply {
-            text = "ЗАКРЫТЬ"; textSize = 11f; typeface = Typeface.DEFAULT_BOLD
-            setTextColor(cyan); gravity = Gravity.CENTER; setPadding(dp(8), dp(8), dp(8), dp(8))
+            text = "ГОТОВО"; textSize = 10f; typeface = Typeface.DEFAULT_BOLD
+            setTextColor(cyan); gravity = Gravity.CENTER; setPadding(dp(8), dp(5), dp(8), dp(5))
             setOnClickListener { dialog.dismiss() }
         })
         panel.addView(footer)
@@ -211,12 +385,15 @@ class LauncherActivity : Activity() {
         dialog.show()
         dialog.window?.apply {
             setBackgroundDrawableResource(android.R.color.transparent)
-            setLayout(-1, dp(430)); setGravity(Gravity.BOTTOM)
+            setLayout(-1, minOf(dp(230), (resources.displayMetrics.heightPixels * .62f).toInt()))
+            setGravity(Gravity.BOTTOM)
             addFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
-            attributes = attributes.apply { dimAmount = .16f }
+            attributes = attributes.apply { dimAmount = .12f }
         }
         apply()
     }
+
+    private fun CoreLabSettings.toValues() = intArrayOf(coreSize, brightness, intensity, iconSize, orbitScale, glow)
 
     private fun showAppOptions(app: LauncherApp) {
         AlertDialog.Builder(this).setTitle(app.label)
@@ -370,7 +547,7 @@ class LauncherActivity : Activity() {
 
     private fun showControlsGuide() {
         AlertDialog.Builder(this)
-            .setTitle("Управление Jarvis Launcher")
+            .setTitle("Управление NULLARCH")
             .setMessage(
                 "ЯДРО\n" +
                 "• Одинарное нажатие — вернуть приложения к сохранённым позициям / возобновить движение\n" +
