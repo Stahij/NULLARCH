@@ -12,8 +12,8 @@ android {
         applicationId = "com.stahij.jarvis.preview"
         minSdk = 26
         targetSdk = 35
-        versionCode = 57
-        versionName = "1.8.9"
+        versionCode = 58
+        versionName = "1.9.0"
 
         ndk {
             abiFilters += listOf("arm64-v8a")
@@ -71,7 +71,7 @@ android {
 // Filament stays isolated in Debug until the renderer spike passes device tests.
 // Visual effects 1.7.5: expanded halo, pulse breathing and particle field.
 // Plasma UI 1.8.2: one radial 3D SDF surface fuses the core with all app droplets; logos remain crisp.
-// NULLARCH 1.8.9: restored layered plasma core, organic ribbons and orbital app icons.
+// NULLARCH 1.9.0: hidden five-touch Core Lab, native app shortcuts, no duplicate glyph icons, separated HOME task. [release-build]
 dependencies {
     debugImplementation("com.google.android.filament:filament-android:1.57.1")
 }
