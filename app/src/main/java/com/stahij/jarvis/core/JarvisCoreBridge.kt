@@ -17,6 +17,7 @@ class JarvisCoreBridge(private val webView: WebView) {
 
     fun setTheme(theme: CoreTheme) = evaluate("JarvisCoreAPI.setTheme('${theme.value}')")
     fun setQuality(quality: CoreQuality) = evaluate("JarvisCoreAPI.setQuality('${quality.value}')")
+    fun setVisualSettings(size: Float, brightness: Float, intensity: Float, hue: Float, glow: Float) = evaluate("JarvisCoreAPI.setVisualSettings($size,$brightness,$intensity,$hue,$glow)")
     fun setAssistantState(state: AssistantState) = evaluate("JarvisCoreAPI.setState('${state.value}')")
     fun pause() = evaluate("JarvisCoreAPI.pause()")
     fun resume() = evaluate("JarvisCoreAPI.resume()")
