@@ -152,6 +152,8 @@ class AtomWorkspaceView(
         return true
     }
 
+    fun removeApp(app: LauncherApp) { items.removeAll { it.app.packageName == app.packageName && it.app.className == app.className }; saveLayout(); invalidate() }
+
     fun setLabIconScale(value: Float) { iconScale = value.coerceIn(.65f, 1.5f); prefs.edit().putFloat("icon_scale", iconScale).apply(); invalidate() }
     fun setLabOrbitScale(value: Float) { orbitScale = value.coerceIn(.65f, 1.45f); prefs.edit().putFloat("orbit_scale", orbitScale).apply(); invalidate() }
 
