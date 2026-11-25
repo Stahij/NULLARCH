@@ -69,6 +69,7 @@ class AtomWorkspaceView(
     private var dragging = false
     private var downAt = 0L
     private var labGestureTriggered = false
+    private var iconOptionsOpened = false
     private var iconScale = prefs.getFloat("icon_scale", 1f).coerceIn(.65f, 1.5f)
     private var orbitScale = prefs.getFloat("orbit_scale", 1f).coerceIn(.65f, 1.45f)
     private val gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
@@ -85,7 +86,11 @@ class AtomWorkspaceView(
         }
 
         override fun onLongPress(e: MotionEvent) {
-            if (isCoreAt(e.x, e.y)) onOpenSettings()
+            val appItem = items.firstOrNull { it.page == page && it.rect.contains(e.x, e.y) }
+            if (appItem != null) {
+                iconOptionsOpened = true
+                onAppOptions(appItem.app)
+            } else if (isCoreAt(e.x, e.y)) onOpenSettings()
         }
 
         override fun onFling(e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
@@ -247,7 +252,8 @@ class AtomWorkspaceView(
                 lastTouchY = event.y
                 selected = items.firstOrNull { it.page == page && it.rect.contains(event.x, event.y) }
                 dragging = false
-                if (selected == null) gestureDetector.onTouchEvent(event)
+                iconOptionsOpened = false
+                gestureDetector.onTouchEvent(event)
                 return true
             }
             MotionEvent.ACTION_MOVE -> {
@@ -258,6 +264,7 @@ class AtomWorkspaceView(
                     gestureDetector.onTouchEvent(event)
                     return true
                 }
+                if (!dragging) gestureDetector.onTouchEvent(event)
                 val dx = event.x - downX
                 val dy = event.y - downY
                 if (abs(dx) + abs(dy) > 24f * density) {
@@ -291,11 +298,13 @@ class AtomWorkspaceView(
                         else -> gestureDetector.onTouchEvent(event)
                     }
                 } else {
-                    if (!dragging) selected?.let { if (SystemClock.uptimeMillis() - downAt >= 500L) onAppOptions(it.app) else launch(it.app) }
+                    if (!dragging && !iconOptionsOpened) selected?.let { if (SystemClock.uptimeMillis() - downAt >= 450L) onAppOptions(it.app) else launch(it.app) }
+                    if (!dragging) gestureDetector.onTouchEvent(event)
                     if (dragging) saveLayout()
                 }
                 selected = null
                 dragging = false
+                iconOptionsOpened = false
                 return true
             }
             MotionEvent.ACTION_CANCEL -> {
