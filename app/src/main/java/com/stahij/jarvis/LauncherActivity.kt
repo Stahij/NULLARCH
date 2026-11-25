@@ -78,7 +78,7 @@ class LauncherActivity : Activity() {
         workspace = AtomWorkspaceView(
             this,
             installedApps,
-            onOpenChat = { startActivity(Intent(this, ChatHubActivity::class.java)) },
+            onOpenChat = { startActivity(Intent(this, ChatHubActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) },
             onOpenSettings = { showCoreMenu() },
             onOpenDrawer = { showAppDrawer() },
             onOpenLab = { showCoreLab() },
