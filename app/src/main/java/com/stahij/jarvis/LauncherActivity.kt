@@ -80,7 +80,9 @@ class LauncherActivity : Activity() {
             installedApps,
             onOpenChat = { startActivity(Intent(this, ChatHubActivity::class.java)) },
             onOpenSettings = { showCoreMenu() },
-            onOpenDrawer = { showAppDrawer() }
+            onOpenDrawer = { showAppDrawer() },
+            onOpenLab = { showCoreLab() },
+            onAppOptions = { showAppOptions(it) }
         )
         val root = FrameLayout(this).apply {
             setBackgroundColor(Color.rgb(3, 8, 20))
@@ -88,6 +90,52 @@ class LauncherActivity : Activity() {
             addView(workspace, FrameLayout.LayoutParams(-1, -1))
         }
         setContentView(root)
+    }
+
+    private fun showCoreLab() {
+        val panel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(22), dp(18), dp(22), dp(12)) }
+        val scroll = android.widget.ScrollView(this).apply { addView(panel) }
+        val labels = listOf("Размер ядра", "Яркость ядра", "Интенсивность ядра", "Размер иконок", "Масштаб орбит", "Цветовая палитра", "Свечение")
+        val defaults = intArrayOf(50, 70, 70, 50, 50, 50, 65)
+        val bars = mutableListOf<android.widget.SeekBar>()
+        labels.forEachIndexed { index, label ->
+            panel.addView(TextView(this).apply { text = label; textSize = 14f; setTextColor(Color.WHITE); setPadding(0, dp(10), 0, 0) })
+            val bar = android.widget.SeekBar(this).apply { max = 100; progress = defaults[index] }
+            bars.add(bar)
+            panel.addView(bar, LinearLayout.LayoutParams(-1, dp(42)))
+        }
+        fun apply() {
+            coreView.bridge.setVisualSettings(
+                .75f + bars[0].progress / 100f * .65f,
+                .45f + bars[1].progress / 100f * .9f,
+                .45f + bars[2].progress / 100f * 1.25f,
+                (bars[5].progress / 100f - .5f) * .7f,
+                .35f + bars[6].progress / 100f * 1.4f
+            )
+            workspace.setLabIconScale(.65f + bars[3].progress / 100f * .85f)
+            workspace.setLabOrbitScale(.65f + bars[4].progress / 100f * .8f)
+        }
+        bars.forEach { it.setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: android.widget.SeekBar?, progress: Int, fromUser: Boolean) { apply() }
+            override fun onStartTrackingTouch(seekBar: android.widget.SeekBar?) = Unit
+            override fun onStopTrackingTouch(seekBar: android.widget.SeekBar?) = Unit
+        }) }
+        AlertDialog.Builder(this).setTitle("NULLARCH · Core Lab")
+            .setView(scroll).setPositiveButton("Готово", null)
+            .setNeutralButton("Сбросить") { _, _ -> bars.forEachIndexed { i, b -> b.progress = defaults[i] }; apply() }
+            .show()
+        apply()
+    }
+
+    private fun showAppOptions(app: LauncherApp) {
+        AlertDialog.Builder(this).setTitle(app.label)
+            .setItems(arrayOf("Информация о приложении", "Удалить ярлык с рабочего стола")) { _, which ->
+                when (which) {
+                    0 -> try { startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                        android.net.Uri.parse("package:" + app.packageName))) } catch (_: Exception) { }
+                    1 -> workspace.removeApp(app)
+                }
+            }.show()
     }
 
     private fun showCoreMenu() {
