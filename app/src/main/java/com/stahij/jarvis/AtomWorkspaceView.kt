@@ -252,7 +252,7 @@ class AtomWorkspaceView(
             }
             MotionEvent.ACTION_MOVE -> {
                 if (selected == null) {
-                    if (downY < height - 68f * density) onRotateCore(event.x - lastTouchX, event.y - lastTouchY)
+                    if (downY < height - 68f * density && !(downY > height - 112f * density && downX < width * .38f)) onRotateCore(event.x - lastTouchX, event.y - lastTouchY)
                     lastTouchX = event.x
                     lastTouchY = event.y
                     gestureDetector.onTouchEvent(event)
