@@ -141,6 +141,11 @@
           }
           return combined;
         }
+        vec3 rotateHue(vec3 c, float a) {
+          vec3 axis = normalize(vec3(1.0, 1.0, 1.0));
+          float cs = cos(a), sn = sin(a);
+          return c * cs + cross(axis, c) * sn + axis * dot(axis, c) * (1.0 - cs);
+        }
       `;
 
       // -----------------------------------------------------------------------
@@ -208,6 +213,7 @@
             col += whitePlasma * pow(fresnel, 4.2) * 0.45;
             col *= uIntensity;
 
+            col = rotateHue(col, uHueShift * 6.2831853);
             gl_FragColor = vec4(col, 1.0);
           }
         `
@@ -269,6 +275,7 @@
             vec3 col = mix(innerAzure, outerCyan, wisps);
 
             float alpha = softHalo * (0.24 + wisps * 0.44) * uIntensity * (1.0 + uSurge * 0.25);
+            col = rotateHue(col, uHueShift * 6.2831853);
             gl_FragColor = vec4(col, clamp(alpha, 0.0, 0.85));
           }
         `
@@ -1078,7 +1085,7 @@
           state.labSize = Math.max(0.65, Math.min(1.4, Number(size) || 1));
           state.labBrightness = Math.max(0.25, Math.min(1.5, Number(brightness) || 1));
           state.labIntensity = Math.max(0.25, Math.min(1.7, Number(intensity) || 1));
-          state.labHue = Math.max(-0.35, Math.min(0.35, Number(hue) || 0));
+          state.labHue = (Math.max(0, Math.min(1, Number(hue) || 0.56)) - 0.5);
           state.labGlow = Math.max(0.25, Math.min(1.75, Number(glow) || 1));
           return true;
         },
