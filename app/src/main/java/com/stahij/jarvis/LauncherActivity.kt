@@ -84,7 +84,7 @@ class LauncherActivity : Activity() {
             onOpenDrawer = { showAppDrawer() },
             onOpenLab = { showCoreLab() },
             onAppOptions = { showAppOptions(it) },
-            onRotateCore = { dx, dy -> coreView.bridge.rotateCore(dx, dy) }
+            onRotateCore = { dx, dy -> workspace.rotateWithCore(dx * 0.0065f); coreView.bridge.rotateCore(dx, dy) }
         )
         applyLabSettings(loadLabSettings())
         val root = FrameLayout(this).apply {
@@ -329,26 +329,26 @@ class LauncherActivity : Activity() {
         })
         palette = object : View(this) {
             private val p = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+            private val hues = floatArrayOf(0f, 45f, 90f, 150f, 195f, 225f, 270f, 315f)
             override fun onDraw(canvas: android.graphics.Canvas) {
                 super.onDraw(canvas)
-                val rows = 4; val cols = 48
-                val cellW = width.toFloat() / cols; val cellH = height.toFloat() / rows
-                for (y in 0 until rows) for (x in 0 until cols) {
-                    val hue = x.toFloat() / (cols - 1) * 360f
-                    val sat = 1f - y * .22f; val value = 1f - y * .12f
-                    p.color = Color.HSVToColor(floatArrayOf(hue, sat, value))
-                    canvas.drawRect(x * cellW, y * cellH, (x + 1) * cellW + 1f, (y + 1) * cellH + 1f, p)
+                val cellW = width.toFloat() / hues.size
+                hues.forEachIndexed { index, hue ->
+                    p.color = Color.HSVToColor(floatArrayOf(hue, 1f, 1f))
+                    canvas.drawRect(index * cellW, 0f, (index + 1) * cellW + 1f, height.toFloat(), p)
                 }
-                val markerX = selectedHue * width
-                val markerY = (1f - (selectedSaturation - .15f) / .85f) * height
-                p.color = Color.WHITE; p.style = android.graphics.Paint.Style.STROKE; p.strokeWidth = dp(2).toFloat()
-                canvas.drawCircle(markerX, markerY, dp(6).toFloat(), p)
+                val selected = hues.indices.minByOrNull { kotlin.math.abs(hues[it] / 360f - selectedHue) } ?: 0
+                p.color = Color.WHITE
+                p.style = android.graphics.Paint.Style.STROKE
+                p.strokeWidth = dp(2).toFloat()
+                canvas.drawCircle((selected + .5f) * cellW, height / 2f, dp(8).toFloat(), p)
                 p.style = android.graphics.Paint.Style.FILL
             }
             override fun onTouchEvent(event: android.view.MotionEvent): Boolean {
                 if (event.action == android.view.MotionEvent.ACTION_DOWN || event.action == android.view.MotionEvent.ACTION_MOVE) {
-                    selectedHue = (event.x / width.coerceAtLeast(1)).coerceIn(0f, 1f)
-                    selectedSaturation = (1f - event.y / height.coerceAtLeast(1) * .85f).coerceIn(.15f, 1f)
+                    val index = ((event.x / width.coerceAtLeast(1)) * hues.size).toInt().coerceIn(0, hues.lastIndex)
+                    selectedHue = hues[index] / 360f
+                    selectedSaturation = 1f
                     invalidate()
                     apply()
                     return true
@@ -358,7 +358,7 @@ class LauncherActivity : Activity() {
         }
         controls.addView(palette, LinearLayout.LayoutParams(-1, dp(54)))
         controls.addView(TextView(this).apply {
-            text = "Цвет — по горизонтали, насыщенность — по вертикали"
+            text = "8 отдельных цветов без промежуточных оттенков"
             textSize = 9f; setTextColor(Color.rgb(132, 160, 181))
         })
 

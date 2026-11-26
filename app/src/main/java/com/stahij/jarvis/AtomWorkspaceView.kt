@@ -61,6 +61,9 @@ class AtomWorkspaceView(
     private var pageCount = 1
     private var running = true
     private var motionEnabled = true
+    private var motionPhase = 0f
+    private var lastMotionFrameMs = SystemClock.uptimeMillis()
+    private var coreRotationOffset = 0f
     private var downX = 0f
     private var downY = 0f
     private var lastTouchX = 0f
@@ -158,6 +161,8 @@ class AtomWorkspaceView(
 
     fun removeApp(app: LauncherApp) { items.removeAll { it.app.packageName == app.packageName && it.app.className == app.className }; saveLayout(); invalidate() }
 
+    fun rotateWithCore(delta: Float) { coreRotationOffset += delta; invalidate() }
+
     fun setLabIconScale(value: Float) { iconScale = value.coerceIn(.65f, 1.5f); prefs.edit().putFloat("icon_scale", iconScale).apply(); invalidate() }
     fun setLabOrbitScale(value: Float) { orbitScale = value.coerceIn(.65f, 1.45f); prefs.edit().putFloat("orbit_scale", orbitScale).apply(); invalidate() }
 
@@ -193,10 +198,12 @@ class AtomWorkspaceView(
         val cx = w * .5f
         val cy = h * .49f
         val base = min(w, h)
-        val elapsed = if (running) SystemClock.uptimeMillis() / 1000f else 0f
+        val now = SystemClock.uptimeMillis()
+        if (running) motionPhase += ((now - lastMotionFrameMs).coerceAtLeast(0L) / 1000f) * .14f
+        lastMotionFrameMs = now
 
         items.filter { it.page == page }.forEachIndexed { index, item ->
-            val angle = item.angle + if (running) elapsed * (.11f + (index % 4) * .012f) else 0f
+            val angle = item.angle + motionPhase + coreRotationOffset
             val radius = base * item.orbit * orbitScale
             val x = cx + cos(angle.toDouble()).toFloat() * radius
             val y = cy + sin(angle.toDouble()).toFloat() * radius * .57f

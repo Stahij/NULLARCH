@@ -1024,14 +1024,14 @@
         }
 
         sharedUniforms.uTime.value = t;
-        sharedUniforms.uIntensity.value = state.currentIntensity * state.labBrightness * state.labIntensity * state.labGlow;
+        sharedUniforms.uIntensity.value = 0.88 * state.currentIntensity * state.labBrightness * state.labIntensity * state.labGlow;
         sharedUniforms.uPulseAmp.value = state.currentPulseAmp;
         sharedUniforms.uHueShift.value = state.currentHueShift + state.labHue;
         sharedUniforms.uLabSaturation.value = state.labSaturation;
         sharedUniforms.uSurge.value = Math.sin(state.surgeValue * Math.PI);
 
         if (!state.pointerDown) {
-          state.targetRotY += dtSec * 0.14 * tempoFactor;
+          state.targetRotY += dtSec * 0.14;
           state.targetRotX *= (1.0 - dtSec * 1.2);
         }
         state.currentRotX += (state.targetRotX - state.currentRotX) * Math.min(1.0, dtSec * 8.0);
