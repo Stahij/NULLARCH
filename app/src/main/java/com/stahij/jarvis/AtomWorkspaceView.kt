@@ -283,6 +283,21 @@ class AtomWorkspaceView(
         invalidate()
     }
 
+    /** Clears delayed long-press callbacks when the launcher loses foreground. */
+    fun cancelPendingTouch() {
+        val now = SystemClock.uptimeMillis()
+        val cancel = MotionEvent.obtain(now, now, MotionEvent.ACTION_CANCEL, 0f, 0f, 0)
+        gestureDetector.onTouchEvent(cancel)
+        cancel.recycle()
+        selected = null
+        touchOwner = TouchOwner.NONE
+        dragging = false
+        movedSinceDown = false
+        labGestureTriggered = false
+        iconOptionsOpened = false
+        longPressConsumed = false
+    }
+
     // Android now owns interaction only; app icons are rendered in the WebGL scene.
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
@@ -368,6 +383,7 @@ class AtomWorkspaceView(
                 // not also trigger a tap/launch, especially when an icon overlaps
                 // the core hit region and is owned by the core gesture handler.
                 if (longPressConsumed) {
+                    gestureDetector.onTouchEvent(event)
                     longPressConsumed = false
                     selected = null
                     touchOwner = TouchOwner.NONE
@@ -409,11 +425,14 @@ class AtomWorkspaceView(
                 return true
             }
             MotionEvent.ACTION_CANCEL -> {
+                gestureDetector.onTouchEvent(event)
                 labGestureTriggered = false
-                if (selected == null) gestureDetector.onTouchEvent(event)
                 selected = null
                 touchOwner = TouchOwner.NONE
                 dragging = false
+                movedSinceDown = false
+                iconOptionsOpened = false
+                longPressConsumed = false
                 return true
             }
         }
