@@ -229,15 +229,25 @@ class AtomWorkspaceView(
         projected.forEach { (entry, depth) ->
             val (item, x, y) = entry
             val radius = base * item.orbit * orbitScale
-            val behindCore = depth < .5f &&
-                ((x - cx) * (x - cx)) / (base * base * .19f * .19f) +
-                ((y - cy) * (y - cy)) / (base * base * .17f * .17f) < 1f
+            val scale = .72f + depth * .38f
+            val iconSize = 34f * density * scale * iconScale
+            // App icons are drawn by the native overlay, not the WebGL depth buffer.
+            // Mask back-side icons across the core silhouette (including their badge)
+            // so they cannot appear pasted over the sphere.
+            val coreRx = base * .22f
+            val coreRy = base * .22f
+            val iconPad = iconSize * .72f
+            val maskRx = coreRx + iconPad
+            val maskRy = coreRy + iconPad
+            val dxCore = x - cx
+            val dyCore = y - cy
+            val overlapsCore = (dxCore * dxCore) / (maskRx * maskRx) +
+                (dyCore * dyCore) / (maskRy * maskRy) < 1f
+            val behindCore = depth < .5f && overlapsCore
             if (behindCore) {
                 item.rect.setEmpty()
                 return@forEach
             }
-            val scale = .72f + depth * .38f
-            val iconSize = 34f * density * scale * iconScale
             val alpha = (155 + depth * 100).toInt()
             paint.color = Color.argb(alpha, 12, 30, 48)
             paint.style = Paint.Style.FILL
