@@ -516,6 +516,7 @@
         { name: 'diagonal-left', rotationX: 90, rotationY: 0, rotationZ: -45, speedRadPerSec: -0.080, radius: 1.62, visible: false }
       ];
       const workspaceOrbitPhases = [0, 0, 0, 0];
+      let orbitPreviewEnabled = false;
       function createOrbitPreview(config) {
         const points = [];
         for (let i = 0; i < 128; i++) {
@@ -540,7 +541,7 @@
           config.orbitLine.material.dispose();
           config.orbitLine = null;
         }
-        if (config.visible) {
+        if (orbitPreviewEnabled && config.visible) {
           config.orbitLine = createOrbitPreview(config);
           config.group.add(config.orbitLine);
         }
@@ -1305,6 +1306,11 @@
           }
         },
         setOrbitConfigurations(json) { return applyOrbitConfigurations(json); },
+        setOrbitPreviewEnabled(enabled) {
+          orbitPreviewEnabled = enabled === true;
+          workspacePlaneGroups.forEach(updateOrbitPreview);
+          registerActivity();
+        },
         setWorkspaceApps(json) { setWorkspaceAppsJson(json); },
         setWorkspacePage(page) { workspacePage = Math.max(0, Number(page) || 0); },
         setWorkspaceNodeLayout(id, angle, orbit, page) {
