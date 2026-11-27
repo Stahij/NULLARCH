@@ -222,7 +222,8 @@
           }
         `
       });
-      coreRoot.add(new THREE.Mesh(innerCoreGeo, innerCoreMat));
+      const innerCoreMesh = new THREE.Mesh(innerCoreGeo, innerCoreMat);
+      coreRoot.add(innerCoreMesh);
 
       // -----------------------------------------------------------------------
       // 4. DRAW CALL 2: ВНЕШНЯЯ ЭНЕРГЕТИЧЕСКАЯ КОРОНА ЯДРА
@@ -495,16 +496,15 @@
       // -----------------------------------------------------------------------
       // 7. ОРБИТАЛЬНЫЕ ИКОНКИ ПРИЛОЖЕНИЙ — SWARM NODES (DRAW CALLS 5 & 6)
       // -----------------------------------------------------------------------
-      let appNodes = [
-        { id: 'phone',    label: 'Phone',    symbol: 'phone',    radius: 2.05, angle: 0.2,  speed: 0.22, tiltX: 0.35,  tiltZ: 0.15 },
-        { id: 'messages', label: 'Messages', symbol: 'chat',     radius: 2.15, angle: 1.1,  speed: 0.19, tiltX: -0.45, tiltZ: 0.3  },
-        { id: 'browser',  label: 'Browser',  symbol: 'globe',    radius: 2.25, angle: 2.1,  speed: 0.17, tiltX: 0.65,  tiltZ: -0.25 },
-        { id: 'camera',   label: 'Camera',   symbol: 'camera',   radius: 2.0,  angle: 3.1,  speed: 0.24, tiltX: -0.2,  tiltZ: -0.5 },
-        { id: 'terminal', label: 'Termux',   symbol: 'terminal', radius: 2.3,  angle: 4.0,  speed: 0.16, tiltX: 0.5,   tiltZ: 0.45 },
-        { id: 'music',    label: 'Music',    symbol: 'music',    radius: 2.1,  angle: 4.9,  speed: 0.21, tiltX: -0.6,  tiltZ: -0.15 },
-        { id: 'maps',     label: 'Maps',     symbol: 'pin',      radius: 2.2,  angle: 5.7,  speed: 0.18, tiltX: 0.15,  tiltZ: 0.6  },
-        { id: 'settings', label: 'Settings', symbol: 'gear',     radius: 2.05, angle: 2.6,  speed: 0.20, tiltX: -0.35, tiltZ: -0.35 }
-      ];
+      let appNodes = [];
+      let workspaceSprites = [];
+      let workspacePage = 0;
+      let workspaceIconScale = 1.0;
+      let workspaceOrbitScale = 1.0;
+      let workspaceFrame = 0;
+      const workspaceRaycaster = new THREE.Raycaster();
+      const workspaceRayHits = [];
+      const workspaceScreen = new THREE.Vector3();
 
       // Процедурный атлас глифов приложений (512x512, 4x4 сетка) с мягким сферическим полем
       function createIconAtlasTexture() {
@@ -703,7 +703,7 @@
       const glyphInstancedMesh = new THREE.InstancedMesh(glyphInstancedGeo, glyphMat, MAX_NODES);
       glyphInstancedMesh.count = appNodes.length;
       glyphInstancedMesh.frustumCulled = false;
-      glyphInstancedMesh.visible = false; // Реальные Android-иконки отображаются нативным слоем лаунчера
+      glyphInstancedMesh.visible = false; // Procedural glyphs disabled; native app icons are uploaded as WebGL sprites.
       coreRoot.add(glyphInstancedMesh);
 
       // DRAW CALL 6: SWARM NODES — Рой заряженных микрочастиц вокруг каждого приложения
@@ -818,38 +818,116 @@
       const _worldPos = new THREE.Vector3();
       const _projVec = new THREE.Vector3();
 
+      function disposeWorkspaceSprites() {
+        workspaceSprites.forEach(entry => {
+          coreRoot.remove(entry.sprite);
+          entry.sprite.material.map?.dispose();
+          entry.sprite.material.dispose();
+        });
+        workspaceSprites = [];
+      }
+
+      function createWorkspaceSprite(node) {
+        const canvas = document.createElement('canvas');
+        canvas.width = 256; canvas.height = 320;
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        const cx = 128, cy = 112, r = 91;
+        ctx.fillStyle = 'rgba(8, 22, 38, 0.82)';
+        ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = 'rgba(91, 220, 255, 0.62)';
+        ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
+        ctx.strokeStyle = 'rgba(160, 242, 255, 0.18)';
+        ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(cx, cy, r - 9, 0, Math.PI * 2); ctx.stroke();
+
+        const iconImage = new Image();
+        iconImage.onload = () => {
+          const max = 132, iw = iconImage.width, ih = iconImage.height;
+          const factor = Math.min(max / Math.max(iw, ih), 1.0);
+          const dw = iw * factor, dh = ih * factor;
+          ctx.drawImage(iconImage, cx - dw / 2, cy - dh / 2, dw, dh);
+          entry.texture.needsUpdate = true;
+        };
+        iconImage.src = 'data:image/png;base64,' + (node.icon || '');
+
+        ctx.font = 'bold 27px sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.shadowColor = 'rgba(0,0,0,0.9)'; ctx.shadowBlur = 8;
+        ctx.fillStyle = '#f4fbff';
+        const label = String(node.label || '').trim();
+        ctx.fillText(label.length > 18 ? label.slice(0, 17) + '…' : label, cx, 266, 236);
+        ctx.shadowBlur = 0;
+
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.colorSpace = THREE.SRGBColorSpace;
+        texture.minFilter = THREE.LinearMipmapLinearFilter;
+        texture.magFilter = THREE.LinearFilter;
+        texture.generateMipmaps = true;
+        const material = new THREE.SpriteMaterial({
+          map: texture, transparent: true, depthTest: true, depthWrite: false,
+          alphaTest: 0.025, toneMapped: false
+        });
+        const sprite = new THREE.Sprite(material);
+        sprite.scale.set(0.52 * workspaceIconScale, 0.66 * workspaceIconScale, 1);
+        sprite.frustumCulled = false;
+        coreRoot.add(sprite);
+        const entry = { node, sprite, texture, canvas };
+        workspaceSprites.push(entry);
+        return entry;
+      }
+
+      function setWorkspaceAppsJson(json) {
+        let nodes;
+        try { nodes = JSON.parse(String(json || '[]')); } catch (_) { nodes = []; }
+        disposeWorkspaceSprites();
+        appNodes = Array.isArray(nodes) ? nodes.slice(0, MAX_NODES) : [];
+        appNodes.forEach(createWorkspaceSprite);
+        glyphInstancedMesh.visible = false;
+        swarmPointsMesh.visible = false;
+        registerActivity();
+      }
+
       function updateOrbitalNodes(dt) {
         const count = Math.min(appNodes.length, MAX_NODES);
-        glyphInstancedMesh.count = count;
-        swarmMat.uniforms.uActiveNodeCount.value = count;
-
-        if (state.activeNodePulse > 0) {
-          state.activeNodePulse = Math.max(0, state.activeNodePulse - dt * 1.8);
-          if (state.activeNodePulse === 0) state.activeNodeIndex = -1;
+        glyphInstancedMesh.count = 0;
+        swarmMat.uniforms.uActiveNodeCount.value = 0;
+        coreRoot.updateMatrixWorld(true);
+        camera.updateMatrixWorld(true);
+        const positions = [];
+        workspaceFrame++;
+        workspaceSprites.forEach(entry => {
+          const node = entry.node, sprite = entry.sprite;
+          const active = Number(node.page || 0) === workspacePage;
+          sprite.visible = active;
+          if (!active) { positions.push({ id: node.id, visible: false }); return; }
+          const normalizedOrbit = Math.max(0.20, Math.min(0.44, Number(node.orbit) || 0.30));
+          const radius = (1.22 + ((normalizedOrbit - 0.20) / 0.24) * 0.72) * workspaceOrbitScale;
+          const angle = Number(node.angle) || 0;
+          sprite.position.set(
+            Math.cos(angle) * radius,
+            Math.sin(angle) * radius * 0.57,
+            Math.sin(angle) * radius * 0.82
+          );
+          sprite.scale.set(0.52 * workspaceIconScale, 0.66 * workspaceIconScale, 1);
+          sprite.updateMatrixWorld(true);
+          workspaceScreen.copy(sprite.getWorldPosition(_worldPos)).project(camera);
+          const sx = (workspaceScreen.x * 0.5 + 0.5) * window.innerWidth;
+          const sy = (-workspaceScreen.y * 0.5 + 0.5) * window.innerHeight;
+          const viewPos = sprite.getWorldPosition(_worldPos);
+          workspaceRaycaster.setFromCamera(new THREE.Vector2(workspaceScreen.x, workspaceScreen.y), camera);
+          workspaceRayHits.length = 0;
+          workspaceRaycaster.intersectObject(innerCoreMesh, false, workspaceRayHits);
+          const nodeDistance = workspaceRaycaster.ray.origin.distanceTo(viewPos);
+          const occluded = workspaceRayHits.length > 0 && workspaceRayHits[0].distance < nodeDistance - 0.03;
+          const viewDepth = Math.max(0.8, camera.position.z - viewPos.z);
+          const pixelScale = window.innerHeight / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) * viewDepth);
+          const w = sprite.scale.x * pixelScale, h = sprite.scale.y * pixelScale;
+          positions.push({ id: node.id, x: sx, y: sy, w, h, visible: !occluded });
+        });
+        if (workspaceFrame % 6 === 0 && window.AndroidLauncher &&
+            typeof window.AndroidLauncher.onNodePositions === 'function') {
+          window.AndroidLauncher.onNodePositions(JSON.stringify(positions));
         }
-
-        for (let i = 0; i < count; i++) {
-          const node = appNodes[i];
-          node.angle += dt * node.speed * (state.isIdlePowerSave ? 0.5 : 1.0);
-
-          _pos.set(Math.cos(node.angle) * node.radius, 0, Math.sin(node.angle) * node.radius);
-          _euler.set(node.tiltX, 0, node.tiltZ);
-          _pos.applyEuler(_euler);
-
-          const hl = (i === state.activeNodeIndex) ? Math.sin(state.activeNodePulse * Math.PI) : 0.0;
-          glyphHighlightAttr[i] = hl;
-
-          _dummy.position.copy(_pos);
-          _dummy.updateMatrix();
-          glyphInstancedMesh.setMatrixAt(i, _dummy.matrix);
-
-          nodeCentersUniform[i * 4]     = _pos.x;
-          nodeCentersUniform[i * 4 + 1] = _pos.y;
-          nodeCentersUniform[i * 4 + 2] = _pos.z;
-          nodeCentersUniform[i * 4 + 3] = hl;
-        }
-        glyphInstancedMesh.instanceMatrix.needsUpdate = true;
-        glyphInstancedGeo.attributes.aHighlight.needsUpdate = true;
       }
 
       // -----------------------------------------------------------------------
@@ -1131,6 +1209,13 @@
             state.aiStateKey = key;
           }
         },
+        setWorkspaceApps(json) { setWorkspaceAppsJson(json); },
+        setWorkspacePage(page) { workspacePage = Math.max(0, Number(page) || 0); },
+        setWorkspaceScales(iconScale, orbitScale) {
+          workspaceIconScale = Math.max(0.65, Math.min(1.5, Number(iconScale) || 1));
+          workspaceOrbitScale = Math.max(0.65, Math.min(1.45, Number(orbitScale) || 1));
+          workspaceSprites.forEach(entry => entry.sprite.scale.set(0.52 * workspaceIconScale, 0.66 * workspaceIconScale, 1));
+        },
         setNodes(nodesArray) {
           if (Array.isArray(nodesArray)) {
             appNodes = nodesArray.slice(0, MAX_NODES);
@@ -1156,6 +1241,7 @@
           outerShellGeo.dispose(); outerShellMat.dispose();
           ribbonsGeo.dispose(); ribbonsMat.dispose();
           bgParticleGeo.dispose(); bgParticleMat.dispose();
+          disposeWorkspaceSprites();
           glyphPlaneGeo.dispose(); glyphInstancedGeo.dispose(); glyphMat.dispose();
           swarmGeo.dispose(); swarmMat.dispose();
           iconAtlasTex.dispose();
