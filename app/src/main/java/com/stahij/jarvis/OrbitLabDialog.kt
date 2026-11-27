@@ -167,17 +167,16 @@ class OrbitLabDialog(
             setOnClickListener { dialog.dismiss() }
         }, LinearLayout.LayoutParams(dp(36), dp(40)))
         buildRoot.addView(header)
-        buildRoot.addView(TextView(context).apply {
+        val body = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
+        body.addView(TextView(context).apply {
             text = "Настрой плоскость • изменения сразу применяются • сохраняются автоматически"
             textSize = 10f; setTextColor(Color.rgb(132, 160, 181)); setPadding(0, 0, 0, dp(8))
         })
         tabs = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER }
-        buildRoot.addView(tabs, LinearLayout.LayoutParams(-1, dp(42)))
-        val scroll = ScrollView(context).apply { isFillViewport = false }
+        body.addView(tabs, LinearLayout.LayoutParams(-1, dp(42)))
         controls = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; setPadding(0, dp(6), 0, dp(6)) }
-        scroll.addView(controls)
-        buildRoot.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
-        buildRoot.addView(TextView(context).apply {
+        body.addView(controls)
+        body.addView(TextView(context).apply {
             text = "ЦЕНТР ЯДРА = (0, 0, 0) • Euler XYZ • правосторонняя система"
             textSize = 9f; setTextColor(Color.rgb(120, 154, 178)); setPadding(0, dp(5), 0, dp(5))
         })
@@ -186,7 +185,7 @@ class OrbitLabDialog(
             setPadding(dp(8), dp(6), dp(8), dp(6))
             background = GradientDrawable().apply { setColor(Color.rgb(9, 24, 40)); cornerRadius = dp(10).toFloat() }
         }
-        buildRoot.addView(coordinates, LinearLayout.LayoutParams(-1, dp(94)))
+        body.addView(coordinates, LinearLayout.LayoutParams(-1, dp(64)))
         val footer = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         footer.addView(TextView(context).apply {
             text = "КОПИРОВАТЬ JSON"; textSize = 10f; typeface = Typeface.DEFAULT_BOLD; setTextColor(cyan)
@@ -205,7 +204,10 @@ class OrbitLabDialog(
                 changed(); renderOrbit(selected)
             }
         })
-        buildRoot.addView(footer)
+        body.addView(footer)
+        val scroll = ScrollView(context).apply { isFillViewport = false; clipToPadding = false }
+        scroll.addView(body)
+        buildRoot.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
     }
 
     private fun changed() {
