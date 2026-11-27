@@ -501,7 +501,6 @@
       let workspacePage = 0;
       let workspaceIconScale = 1.0;
       let workspaceOrbitScale = 1.0;
-      let workspaceOrbitPhase = 0.0;
       let workspaceFrame = 0;
       // App satellites live in a separate scene group: core gestures rotate the plasma,
       // while the orbit has its own slow phase and independent depth.
@@ -963,11 +962,6 @@
           const sx = (workspaceScreen.x * 0.5 + 0.5) * window.innerWidth;
           const sy = (-workspaceScreen.y * 0.5 + 0.5) * window.innerHeight;
           const viewPos = sprite.getWorldPosition(_worldPos);
-          workspaceNdc.set(workspaceScreen.x, workspaceScreen.y);
-          workspaceRaycaster.setFromCamera(workspaceNdc, camera);
-          workspaceRayHits.length = 0;
-          workspaceRaycaster.intersectObject(innerCoreMesh, false, workspaceRayHits);
-          const nodeDistance = workspaceRaycaster.ray.origin.distanceTo(viewPos);
           const viewDepth = Math.max(0.8, camera.position.z - viewPos.z);
           const pixelScale = window.innerHeight / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) * viewDepth);
           const w = sprite.scale.x * pixelScale, h = sprite.scale.y * pixelScale;
@@ -1280,11 +1274,12 @@
         setWorkspaceApps(json) { setWorkspaceAppsJson(json); },
         setWorkspacePage(page) { workspacePage = Math.max(0, Number(page) || 0); },
         setWorkspaceNodeLayout(id, angle, orbit, page) {
-          const node = appNodes.find(item => item.id === String(id));
-          if (node) {
-            // Android supplies the current screen-space orbital angle; remove the
-            // automatic phase so a dragged icon stays exactly where it was released.
-            node.angle = (Number(angle) || 0) - workspaceOrbitPhase;
+          const nodeIndex = appNodes.findIndex(item => item.id === String(id));
+          if (nodeIndex >= 0) {
+            const node = appNodes[nodeIndex];
+            const planeIndex = nodeIndex % workspaceOrbitPhases.length;
+            // Preserve the released angle relative to this icon's own orbital phase.
+            node.angle = (Number(angle) || 0) - workspaceOrbitPhases[planeIndex];
             node.orbit = Math.max(0.20, Math.min(0.44, Number(orbit) || 0.30));
             node.page = Math.max(0, Number(page) || 0);
           }
@@ -1320,8 +1315,10 @@
           ribbonsGeo.dispose(); ribbonsMat.dispose();
           bgParticleGeo.dispose(); bgParticleMat.dispose();
           disposeWorkspaceSprites();
-          workspaceRoot.children.forEach(child => {
-            if (child.isLineLoop) { child.geometry.dispose(); child.material.dispose(); }
+          workspacePlaneGroups.forEach(plane => {
+            plane.group.traverse(child => {
+              if (child.isLineLoop) { child.geometry.dispose(); child.material.dispose(); }
+            });
           });
           glyphPlaneGeo.dispose(); glyphInstancedGeo.dispose(); glyphMat.dispose();
           swarmGeo.dispose(); swarmMat.dispose();
