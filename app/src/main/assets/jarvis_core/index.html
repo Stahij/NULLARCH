@@ -505,6 +505,7 @@
       const workspaceRaycaster = new THREE.Raycaster();
       const workspaceRayHits = [];
       const workspaceScreen = new THREE.Vector3();
+      const workspaceNdc = new THREE.Vector2();
 
       // Процедурный атлас глифов приложений (512x512, 4x4 сетка) с мягким сферическим полем
       function createIconAtlasTexture() {
@@ -914,7 +915,8 @@
           const sx = (workspaceScreen.x * 0.5 + 0.5) * window.innerWidth;
           const sy = (-workspaceScreen.y * 0.5 + 0.5) * window.innerHeight;
           const viewPos = sprite.getWorldPosition(_worldPos);
-          workspaceRaycaster.setFromCamera(new THREE.Vector2(workspaceScreen.x, workspaceScreen.y), camera);
+          workspaceNdc.set(workspaceScreen.x, workspaceScreen.y);
+          workspaceRaycaster.setFromCamera(workspaceNdc, camera);
           workspaceRayHits.length = 0;
           workspaceRaycaster.intersectObject(innerCoreMesh, false, workspaceRayHits);
           const nodeDistance = workspaceRaycaster.ray.origin.distanceTo(viewPos);
