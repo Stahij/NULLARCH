@@ -81,7 +81,8 @@ class OrbitLabDialog(
         dialog.show()
         dialog.window?.apply {
             setBackgroundDrawableResource(android.R.color.transparent)
-            setLayout(-1, (context.resources.displayMetrics.heightPixels * .86f).toInt())
+            val metrics = context.resources.displayMetrics
+            setLayout((metrics.widthPixels * .94f).toInt(), (metrics.heightPixels * .68f).toInt())
             setGravity(Gravity.CENTER)
             addFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
             attributes = attributes.apply { dimAmount = .42f }
