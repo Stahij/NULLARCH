@@ -166,8 +166,10 @@ class AtomWorkspaceView(
         val id = app.packageName + "/" + app.className
         if (items.any { it.app.packageName + "/" + it.app.className == id }) return false
         val pageItems = items.count { it.page == page }
-        val angle = ((pageItems % 8).toFloat() / 8f * (Math.PI * 2.0)).toFloat()
-        val orbit = (.25f + (pageItems % 3) * .075f).coerceIn(.20f, .44f)
+        // Golden-angle placement avoids stacking newly added icons in the same
+        // screen-space sectors; orbit lanes alternate to keep labels separated.
+        val angle = (pageItems * 2.3999632f) % (Math.PI.toFloat() * 2f)
+        val orbit = (.20f + (pageItems % 5) * .06f).coerceIn(.20f, .44f)
         items.add(OrbitalItem(app, angle, orbit, page))
         saveLayout()
         onWorkspaceChanged()
