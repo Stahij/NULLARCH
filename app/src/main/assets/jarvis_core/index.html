@@ -1104,7 +1104,12 @@
           state.labBrightness = Math.max(0.25, Math.min(1.5, Number(brightness) || 1));
           state.labIntensity = Math.max(0.25, Math.min(1.7, Number(intensity) || 1));
           const hueValue = Number(hue);
-          state.labHue = (Math.max(0, Math.min(1, Number.isFinite(hueValue) ? hueValue : 0.56)) - 0.5);
+          const targetHue = Math.max(0, Math.min(1, Number.isFinite(hueValue) ? hueValue : 0.56));
+          // Rotate from the plasma's blue-cyan base hue (~0.61) to the selected palette hue.
+          let hueShift = targetHue - 0.61;
+          if (hueShift < -0.5) hueShift += 1;
+          if (hueShift > 0.5) hueShift -= 1;
+          state.labHue = hueShift;
           state.labSaturation = Math.max(0.15, Math.min(1.0, Number(saturation) || 1.0));
           state.labGlow = Math.max(0.25, Math.min(1.75, Number(glow) || 1));
           return true;
