@@ -21,6 +21,9 @@ class JarvisCoreBridge(private val webView: WebView) {
     fun setAssistantState(state: AssistantState) = evaluate("JarvisCoreAPI.setState('${state.value}')")
     fun rotateCore(dx: Float, dy: Float) = evaluate("JarvisCoreAPI.rotate(${dx * 0.0065f},${dy * 0.0065f})")
     fun setNativeTouchOwner(enabled: Boolean) = evaluate("JarvisCoreAPI.setNativeTouchOwner($enabled)")
+    fun setWorkspaceApps(json: String) = evaluate("JarvisCoreAPI.setWorkspaceApps(" + org.json.JSONObject.quote(json) + ")")
+    fun setWorkspacePage(page: Int) = evaluate("JarvisCoreAPI.setWorkspacePage($page)")
+    fun setWorkspaceScales(iconScale: Float, orbitScale: Float) = evaluate("JarvisCoreAPI.setWorkspaceScales($iconScale,$orbitScale)")
     fun pause() = evaluate("JarvisCoreAPI.pause()")
     fun resume() = evaluate("JarvisCoreAPI.resume()")
 
