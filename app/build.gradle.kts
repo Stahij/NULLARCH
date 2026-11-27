@@ -12,8 +12,8 @@ android {
         applicationId = "com.stahij.jarvis.preview"
         minSdk = 26
         targetSdk = 35
-        versionCode = 76
-        versionName = "1.9.18"
+        versionCode = 77
+        versionName = "1.9.19"
 
         ndk {
             abiFilters += listOf("arm64-v8a")
