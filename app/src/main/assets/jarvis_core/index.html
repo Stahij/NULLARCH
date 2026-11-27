@@ -903,6 +903,7 @@
       }
 
       viewportEl.addEventListener('pointerdown', (e) => {
+        if (state.nativeTouchOwner) return;
         registerActivity();
         state.pointerDown = true;
         state.pointerMoved = false;
@@ -911,7 +912,7 @@
       }, { passive: true });
 
       window.addEventListener('pointermove', (e) => {
-        if (!state.pointerDown) return;
+        if (state.nativeTouchOwner || !state.pointerDown) return;
         registerActivity();
         const dx = e.clientX - state.lastX;
         const dy = e.clientY - state.lastY;
@@ -925,6 +926,7 @@
       }, { passive: true });
 
       window.addEventListener('pointerup', (e) => {
+        if (state.nativeTouchOwner) { state.pointerDown = false; return; }
         if (state.pointerDown && !state.pointerMoved) {
           handleNodeTap(e.clientX, e.clientY);
         }
@@ -1105,6 +1107,11 @@
           state.labHue = (Math.max(0, Math.min(1, Number.isFinite(hueValue) ? hueValue : 0.56)) - 0.5);
           state.labSaturation = Math.max(0.15, Math.min(1.0, Number(saturation) || 1.0));
           state.labGlow = Math.max(0.25, Math.min(1.75, Number(glow) || 1));
+          return true;
+        },
+        setNativeTouchOwner(enabled) {
+          state.nativeTouchOwner = !!enabled;
+          state.pointerDown = false;
           return true;
         },
         rotate(dx, dy) {
