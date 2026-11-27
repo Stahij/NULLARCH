@@ -41,10 +41,10 @@ class OrbitLabDialog(
     private val prefs = context.getSharedPreferences("nullarch_orbit_lab", Context.MODE_PRIVATE)
     private val cyan = Color.rgb(99, 224, 255)
     private val defaults = listOf(
-        Orbit("Вертикальная", 90f, 0f, 0f, 1.58f, .115f),
+        Orbit("Вертикальная", 0f, 90f, 0f, 1.58f, .115f),
         Orbit("Горизонтальная", 0f, 0f, 0f, 1.58f, -.102f),
-        Orbit("Диагональ вправо", 90f, 0f, 45f, 1.62f, .088f),
-        Orbit("Диагональ влево", 90f, 0f, -45f, 1.62f, -.080f)
+        Orbit("Диагональ вправо", 0f, 45f, 35f, 1.62f, .088f),
+        Orbit("Диагональ влево", 0f, -45f, -35f, 1.62f, -.080f)
     )
     private val orbits = mutableListOf<Orbit>()
     private val dialog = Dialog(context)
@@ -56,10 +56,10 @@ class OrbitLabDialog(
     companion object {
         fun defaultConfigJson(): String {
             val defaults = arrayOf(
-                floatArrayOf(90f, 0f, 0f, 1.58f, .115f),
+                floatArrayOf(0f, 90f, 0f, 1.58f, .115f),
                 floatArrayOf(0f, 0f, 0f, 1.58f, -.102f),
-                floatArrayOf(90f, 0f, 45f, 1.62f, .088f),
-                floatArrayOf(90f, 0f, -45f, 1.62f, -.080f)
+                floatArrayOf(0f, 45f, 35f, 1.62f, .088f),
+                floatArrayOf(0f, -45f, -35f, 1.62f, -.080f)
             )
             val names = arrayOf("vertical", "horizontal", "diagonal-right", "diagonal-left")
             val array = JSONArray()
