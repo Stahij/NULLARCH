@@ -89,6 +89,9 @@ class LauncherActivity : Activity() {
             onWorkspaceChanged = {
                 coreView.bridge.setWorkspaceApps(workspace.workspaceAppsJson())
                 coreView.bridge.setWorkspacePage(workspace.currentPage)
+            },
+            onWorkspaceNodeDragged = { id, angle, orbit, page ->
+                coreView.bridge.setWorkspaceNodeLayout(id, angle, orbit, page)
             }
         )
         coreView.setNodePositionsListener { workspace.updateWebGlNodePositions(it) }
