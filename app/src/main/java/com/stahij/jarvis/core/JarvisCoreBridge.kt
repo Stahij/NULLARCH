@@ -20,6 +20,7 @@ class JarvisCoreBridge(private val webView: WebView) {
     fun setVisualSettings(size: Float, brightness: Float, intensity: Float, hue: Float, glow: Float, saturation: Float = 1f) = evaluate("JarvisCoreAPI.setVisualSettings($size,$brightness,$intensity,$hue,$glow,$saturation)")
     fun setAssistantState(state: AssistantState) = evaluate("JarvisCoreAPI.setState('${state.value}')")
     fun rotateCore(dx: Float, dy: Float) = evaluate("JarvisCoreAPI.rotate(${dx * 0.0065f},${dy * 0.0065f})")
+    fun setNativeTouchOwner(enabled: Boolean) = evaluate("JarvisCoreAPI.setNativeTouchOwner($enabled)")
     fun pause() = evaluate("JarvisCoreAPI.pause()")
     fun resume() = evaluate("JarvisCoreAPI.resume()")
 
