@@ -24,7 +24,7 @@ import kotlin.math.sin
 /** Editable orbital plane controls shown over the live launcher scene. */
 class OrbitLabDialog(
     private val context: Context,
-    initialJson: String,
+    private val initialJson: String,
     private val onConfigChanged: (String) -> Unit,
     private val onPreviewEnabled: (Boolean) -> Unit
 ) {
@@ -279,7 +279,7 @@ class OrbitLabDialog(
         val value = TextView(context).apply { text = String.format(Locale.US, format, initial); textSize = 10f; setTextColor(cyan) }
         row.addView(value); controls.addView(row)
         val bar = SeekBar(context).apply {
-            max = maxProgress; progress = ((initial - min) / step).toInt().coerceIn(0, maxProgress)
+            this.max = maxProgress; progress = ((initial - min) / step).toInt().coerceIn(0, maxProgress)
         }
         bar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
