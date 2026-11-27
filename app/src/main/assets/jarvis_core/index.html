@@ -508,41 +508,20 @@
       workspaceRoot.rotation.set(0.12, 0.0, -0.035);
       scene.add(workspaceRoot);
 
+      // Four invisible mathematical orbital planes. No orbit meshes/lines are rendered.
       const ORBIT_PLANE_CONFIG = [
-        { name: 'vertical',   rotationZ: Math.PI * 0.5, tiltX: 0.20, tiltY: 0.18, speed:  0.115, radius: 1.52 },
-        { name: 'horizontal', rotationZ: 0.0,            tiltX: 0.30, tiltY: 0.08, speed: -0.102, radius: 1.64 },
-        { name: 'diagonal-right', rotationZ: Math.PI * 0.25, tiltX: -0.24, tiltY: 0.20, speed: 0.088, radius: 1.76 },
-        { name: 'diagonal-left',  rotationZ: -Math.PI * 0.25, tiltX: 0.22, tiltY: -0.20, speed: -0.080, radius: 1.88 }
+        { name: 'vertical',        rotationX: Math.PI * 0.5, rotationY: 0, rotationZ: 0,                speed:  0.115, radius: 1.58 },
+        { name: 'horizontal',      rotationX: 0,             rotationY: 0, rotationZ: 0,                speed: -0.102, radius: 1.58 },
+        { name: 'diagonal-right',  rotationX: Math.PI * 0.5, rotationY: 0, rotationZ: Math.PI * 0.25,  speed:  0.088, radius: 1.62 },
+        { name: 'diagonal-left',   rotationX: Math.PI * 0.5, rotationY: 0, rotationZ: -Math.PI * 0.25, speed: -0.080, radius: 1.62 }
       ];
       const workspaceOrbitPhases = [0, 0, 0, 0];
-      const workspacePlaneGroups = ORBIT_PLANE_CONFIG.map((config, index) => {
+      const workspacePlaneGroups = ORBIT_PLANE_CONFIG.map(config => {
         const group = new THREE.Group();
-        group.name = 'workspace-orbit-' + config.name;
-        group.rotation.set(config.tiltX, config.tiltY, config.rotationZ);
+        group.name = 'workspace-orbit-plane-' + config.name;
+        group.rotation.set(config.rotationX, config.rotationY, config.rotationZ);
         workspaceRoot.add(group);
-        function createWorkspaceOrbitRing(radius, opacity) {
-          const points = [];
-          for (let i = 0; i < 128; i++) {
-            const a = (i / 128) * Math.PI * 2;
-            points.push(new THREE.Vector3(
-              Math.cos(a) * radius,
-              Math.sin(a) * radius * 0.72,
-              0
-            ));
-          }
-          const geometry = new THREE.BufferGeometry().setFromPoints(points);
-          const material = new THREE.LineBasicMaterial({
-            color: 0x62dcff, transparent: true, opacity,
-            depthTest: true, depthWrite: false, toneMapped: false
-          });
-          const ring = new THREE.LineLoop(geometry, material);
-          ring.frustumCulled = false;
-          group.add(ring);
-          return ring;
-        }
-        const ring = createWorkspaceOrbitRing(config.radius, 0.105 - index * 0.012);
-        const outerRing = createWorkspaceOrbitRing(config.radius + 0.18, 0.035);
-        return { ...config, group, ring, outerRing };
+        return { ...config, group };
       });
       const workspaceRaycaster = new THREE.Raycaster();
       const workspaceRayHits = [];
@@ -937,8 +916,6 @@
         const step = Math.max(0, Number(dt) || 0);
         for (let i = 0; i < workspaceOrbitPhases.length; i++) {
           workspaceOrbitPhases[i] = (workspaceOrbitPhases[i] + step * workspacePlaneGroups[i].speed) % (Math.PI * 2);
-          workspacePlaneGroups[i].ring.scale.setScalar(workspaceOrbitScale);
-          workspacePlaneGroups[i].outerRing.scale.setScalar(workspaceOrbitScale);
         }
         workspaceRoot.scale.setScalar(state.currentScale * state.labSize);
         coreRoot.updateMatrixWorld(true);
@@ -1315,11 +1292,7 @@
           ribbonsGeo.dispose(); ribbonsMat.dispose();
           bgParticleGeo.dispose(); bgParticleMat.dispose();
           disposeWorkspaceSprites();
-          workspacePlaneGroups.forEach(plane => {
-            plane.group.traverse(child => {
-              if (child.isLineLoop) { child.geometry.dispose(); child.material.dispose(); }
-            });
-          });
+          workspacePlaneGroups.forEach(plane => workspaceRoot.remove(plane.group));
           glyphPlaneGeo.dispose(); glyphInstancedGeo.dispose(); glyphMat.dispose();
           swarmGeo.dispose(); swarmMat.dispose();
           iconAtlasTex.dispose();
