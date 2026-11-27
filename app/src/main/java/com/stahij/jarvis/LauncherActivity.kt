@@ -85,7 +85,7 @@ class LauncherActivity : Activity() {
             onOpenDrawer = { showAppDrawer() },
             onOpenLab = { showCoreLab() },
             onAppOptions = { showAppOptions(it) },
-            onRotateCore = { dx, dy -> workspace.rotateWithCore(dx * 0.0065f); coreView.bridge.rotateCore(dx, dy) }
+            onRotateCore = { dx, dy -> workspace.rotateWithCore(dx, dy); coreView.bridge.rotateCore(dx, dy) }
         )
         applyLabSettings(loadLabSettings())
         val root = FrameLayout(this).apply {
