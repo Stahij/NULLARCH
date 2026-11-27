@@ -92,12 +92,14 @@ class AtomWorkspaceView(
         override fun onDown(e: MotionEvent): Boolean = true
 
         override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
-            if (isCoreAt(e.x, e.y)) toggleMotion()
+            val onIcon = items.any { it.page == page && it.rect.contains(e.x, e.y) }
+            if (!onIcon && isCoreAt(e.x, e.y)) toggleMotion()
             return true
         }
 
         override fun onDoubleTap(e: MotionEvent): Boolean {
-            if (isCoreAt(e.x, e.y)) onOpenChat()
+            val onIcon = items.any { it.page == page && it.rect.contains(e.x, e.y) }
+            if (!onIcon && isCoreAt(e.x, e.y)) onOpenChat()
             return true
         }
 
