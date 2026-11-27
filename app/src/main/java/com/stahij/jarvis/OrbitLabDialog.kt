@@ -215,7 +215,7 @@ class OrbitLabDialog(
 
     private fun changed() {
         val json = configArray().toString()
-        prefs.edit().putString("configs", json).apply()
+        prefs.edit().putString("configs_calibrated_1", json).apply()
         onConfigChanged(json)
         updateCoordinates()
     }
