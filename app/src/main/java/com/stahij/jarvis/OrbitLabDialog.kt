@@ -1,5 +1,6 @@
 package com.stahij.jarvis
 
+import android.app.AlertDialog
 import android.app.Dialog
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -9,6 +10,8 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
+import android.text.InputType
+import android.widget.EditText
 import android.widget.CheckBox
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -260,17 +263,51 @@ class OrbitLabDialog(
         row.addView(TextView(context).apply {
             text = label; textSize = 10f; setTextColor(Color.rgb(218, 232, 244))
         }, LinearLayout.LayoutParams(0, dp(22), 1f))
-        val value = TextView(context).apply { text = initial.toInt().toString() + "°"; textSize = 10f; setTextColor(cyan) }
+        val value = TextView(context).apply {
+            text = initial.toInt().toString() + "°"; textSize = 10f; setTextColor(cyan)
+            setPadding(dp(8), dp(3), dp(4), dp(3))
+            background = GradientDrawable().apply {
+                setColor(Color.rgb(9, 25, 42)); cornerRadius = dp(6).toFloat()
+            }
+            contentDescription = "Точное значение угла. Нажми, чтобы ввести число"
+        }
         row.addView(value); controls.addView(row)
         val bar = SeekBar(context).apply { max = 360; progress = (initial + 180f).toInt().coerceIn(0, 360) }
+        fun setAngle(v: Float) {
+            val exact = v.coerceIn(-180f, 180f)
+            bar.progress = (exact + 180f).toInt()
+            setter(exact)
+            value.text = exact.toInt().toString() + "°"
+            changed()
+        }
         bar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                val v = (progress - 180).toFloat()
-                setter(v); value.text = v.toInt().toString() + "°"; changed()
+                if (!fromUser) return
+                setAngle((progress - 180).toFloat())
             }
             override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
             override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
         })
+        value.setOnClickListener {
+            val input = EditText(context).apply {
+                inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_SIGNED
+                setText(value.text.toString().removeSuffix("°"))
+                setSelection(text.length)
+                hint = "-180…180"
+            }
+            AlertDialog.Builder(context)
+                .setTitle("$label • точный угол")
+                .setMessage("Введи целое число градусов от −180 до 180")
+                .setView(input)
+                .setNegativeButton("ОТМЕНА", null)
+                .setPositiveButton("ПРИМЕНИТЬ") { _, _ ->
+                    val parsed = input.text.toString().trim().toIntOrNull()
+                    if (parsed == null || parsed !in -180..180) {
+                        Toast.makeText(context, "Нужно число от −180 до 180", Toast.LENGTH_SHORT).show()
+                    } else setAngle(parsed.toFloat())
+                }
+                .show()
+        }
         controls.addView(bar, LinearLayout.LayoutParams(-1, dp(30)))
     }
 
