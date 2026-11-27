@@ -1213,6 +1213,14 @@
         },
         setWorkspaceApps(json) { setWorkspaceAppsJson(json); },
         setWorkspacePage(page) { workspacePage = Math.max(0, Number(page) || 0); },
+        setWorkspaceNodeLayout(id, angle, orbit, page) {
+          const node = appNodes.find(item => item.id === String(id));
+          if (node) {
+            node.angle = Number(angle) || 0;
+            node.orbit = Math.max(0.20, Math.min(0.44, Number(orbit) || 0.30));
+            node.page = Math.max(0, Number(page) || 0);
+          }
+        },
         setWorkspaceScales(iconScale, orbitScale) {
           workspaceIconScale = Math.max(0.65, Math.min(1.5, Number(iconScale) || 1));
           workspaceOrbitScale = Math.max(0.65, Math.min(1.45, Number(orbitScale) || 1));
