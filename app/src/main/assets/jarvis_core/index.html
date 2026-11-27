@@ -509,29 +509,42 @@
       workspaceRoot.rotation.set(0.12, 0.0, -0.035);
       scene.add(workspaceRoot);
 
-      function createWorkspaceOrbitRing(radius, opacity) {
-        const points = [];
-        for (let i = 0; i < 128; i++) {
-          const a = (i / 128) * Math.PI * 2;
-          points.push(new THREE.Vector3(
-            Math.cos(a) * radius,
-            Math.sin(a) * radius * 0.42,
-            Math.sin(a) * radius * 0.91
-          ));
+      const ORBIT_PLANE_CONFIG = [
+        { name: 'vertical',   rotationZ: Math.PI * 0.5, tiltX: 0.20, tiltY: 0.18, speed:  0.115, radius: 1.52 },
+        { name: 'horizontal', rotationZ: 0.0,            tiltX: 0.30, tiltY: 0.08, speed: -0.102, radius: 1.64 },
+        { name: 'diagonal-right', rotationZ: Math.PI * 0.25, tiltX: -0.24, tiltY: 0.20, speed: 0.088, radius: 1.76 },
+        { name: 'diagonal-left',  rotationZ: -Math.PI * 0.25, tiltX: 0.22, tiltY: -0.20, speed: -0.080, radius: 1.88 }
+      ];
+      const workspaceOrbitPhases = [0, 0, 0, 0];
+      const workspacePlaneGroups = ORBIT_PLANE_CONFIG.map((config, index) => {
+        const group = new THREE.Group();
+        group.name = 'workspace-orbit-' + config.name;
+        group.rotation.set(config.tiltX, config.tiltY, config.rotationZ);
+        workspaceRoot.add(group);
+        function createWorkspaceOrbitRing(radius, opacity) {
+          const points = [];
+          for (let i = 0; i < 128; i++) {
+            const a = (i / 128) * Math.PI * 2;
+            points.push(new THREE.Vector3(
+              Math.cos(a) * radius,
+              Math.sin(a) * radius * 0.72,
+              0
+            ));
+          }
+          const geometry = new THREE.BufferGeometry().setFromPoints(points);
+          const material = new THREE.LineBasicMaterial({
+            color: 0x62dcff, transparent: true, opacity,
+            depthTest: true, depthWrite: false, toneMapped: false
+          });
+          const ring = new THREE.LineLoop(geometry, material);
+          ring.frustumCulled = false;
+          group.add(ring);
+          return ring;
         }
-        const geometry = new THREE.BufferGeometry().setFromPoints(points);
-        const material = new THREE.LineBasicMaterial({
-          color: 0x62dcff, transparent: true, opacity,
-          depthTest: true, depthWrite: false, toneMapped: false
-        });
-        const ring = new THREE.LineLoop(geometry, material);
-        ring.frustumCulled = false;
-        workspaceRoot.add(ring);
-        return ring;
-      }
-      const workspaceOrbitRingInner = createWorkspaceOrbitRing(1.62, 0.16);
-      const workspaceOrbitRingOuter = createWorkspaceOrbitRing(2.02, 0.075);
-
+        const ring = createWorkspaceOrbitRing(config.radius, 0.105 - index * 0.012);
+        const outerRing = createWorkspaceOrbitRing(config.radius + 0.18, 0.035);
+        return { ...config, group, ring, outerRing };
+      });
       const workspaceRaycaster = new THREE.Raycaster();
       const workspaceRayHits = [];
       const workspaceScreen = new THREE.Vector3();
@@ -851,14 +864,14 @@
 
       function disposeWorkspaceSprites() {
         workspaceSprites.forEach(entry => {
-          workspaceRoot.remove(entry.sprite);
+          workspacePlaneGroups[entry.planeIndex]?.group.remove(entry.sprite);
           entry.sprite.material.map?.dispose();
           entry.sprite.material.dispose();
         });
         workspaceSprites = [];
       }
 
-      function createWorkspaceSprite(node) {
+      function createWorkspaceSprite(node, index) {
         const canvas = document.createElement('canvas');
         canvas.width = 256; canvas.height = 320;
         const ctx = canvas.getContext('2d');
@@ -901,8 +914,9 @@
         const sprite = new THREE.Sprite(material);
         sprite.scale.set(0.40 * workspaceIconScale, 0.52 * workspaceIconScale, 1);
         sprite.frustumCulled = false;
-        workspaceRoot.add(sprite);
-        const entry = { node, sprite, texture, canvas };
+        const planeIndex = ((Number(index) || 0) % workspacePlaneGroups.length + workspacePlaneGroups.length) % workspacePlaneGroups.length;
+        workspacePlaneGroups[planeIndex].group.add(sprite);
+        const entry = { node, sprite, texture, canvas, planeIndex };
         workspaceSprites.push(entry);
         return entry;
       }
@@ -912,20 +926,22 @@
         try { nodes = JSON.parse(String(json || '[]')); } catch (_) { nodes = []; }
         disposeWorkspaceSprites();
         appNodes = Array.isArray(nodes) ? nodes.slice(0, MAX_NODES) : [];
-        appNodes.forEach(createWorkspaceSprite);
+        appNodes.forEach((node, index) => createWorkspaceSprite(node, index));
         glyphInstancedMesh.visible = false;
         swarmPointsMesh.visible = false;
         registerActivity();
       }
 
       function updateOrbitalNodes(dt) {
-        const count = Math.min(appNodes.length, MAX_NODES);
         glyphInstancedMesh.count = 0;
         swarmMat.uniforms.uActiveNodeCount.value = 0;
-        workspaceOrbitPhase = (workspaceOrbitPhase + Math.max(0, Number(dt) || 0) * 0.12) % (Math.PI * 2);
+        const step = Math.max(0, Number(dt) || 0);
+        for (let i = 0; i < workspaceOrbitPhases.length; i++) {
+          workspaceOrbitPhases[i] = (workspaceOrbitPhases[i] + step * workspacePlaneGroups[i].speed) % (Math.PI * 2);
+          workspacePlaneGroups[i].ring.scale.setScalar(workspaceOrbitScale);
+          workspacePlaneGroups[i].outerRing.scale.setScalar(workspaceOrbitScale);
+        }
         workspaceRoot.scale.setScalar(state.currentScale * state.labSize);
-        workspaceOrbitRingInner.scale.setScalar(workspaceOrbitScale);
-        workspaceOrbitRingOuter.scale.setScalar(workspaceOrbitScale);
         coreRoot.updateMatrixWorld(true);
         workspaceRoot.updateMatrixWorld(true);
         camera.updateMatrixWorld(true);
@@ -936,15 +952,11 @@
           const active = Number(node.page || 0) === workspacePage;
           sprite.visible = active;
           if (!active) { positions.push({ id: node.id, visible: false }); return; }
+          const plane = workspacePlaneGroups[entry.planeIndex];
           const normalizedOrbit = Math.max(0.20, Math.min(0.44, Number(node.orbit) || 0.30));
-          // Wider lanes keep icons clear of the core and separate labels in portrait mode.
-          const radius = (1.35 + ((normalizedOrbit - 0.20) / 0.24) * 0.62) * workspaceOrbitScale;
-          const angle = (Number(node.angle) || 0) + workspaceOrbitPhase;
-          sprite.position.set(
-            Math.cos(angle) * radius,
-            Math.sin(angle) * radius * 0.57,
-            Math.sin(angle) * radius * 0.82
-          );
+          const radius = (plane.radius + (normalizedOrbit - 0.30) * 0.38) * workspaceOrbitScale;
+          const angle = (Number(node.angle) || 0) + workspaceOrbitPhases[entry.planeIndex];
+          sprite.position.set(Math.cos(angle) * radius, Math.sin(angle) * radius * 0.72, 0);
           sprite.scale.set(0.40 * workspaceIconScale, 0.52 * workspaceIconScale, 1);
           sprite.updateMatrixWorld(true);
           workspaceScreen.copy(sprite.getWorldPosition(_worldPos)).project(camera);
@@ -956,13 +968,9 @@
           workspaceRayHits.length = 0;
           workspaceRaycaster.intersectObject(innerCoreMesh, false, workspaceRayHits);
           const nodeDistance = workspaceRaycaster.ray.origin.distanceTo(viewPos);
-          const occluded = workspaceRayHits.length > 0 && workspaceRayHits[0].distance < nodeDistance - 0.03;
           const viewDepth = Math.max(0.8, camera.position.z - viewPos.z);
           const pixelScale = window.innerHeight / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) * viewDepth);
           const w = sprite.scale.x * pixelScale, h = sprite.scale.y * pixelScale;
-          // Hit testing is handled by Android. Do not discard the native hitbox just
-          // because the icon's center ray crosses the core; the sprite may still be visible
-          // around the sphere's silhouette. Depth is handled by the WebGL renderer itself.
           const insideViewport = sx >= -w && sx <= window.innerWidth + w &&
             sy >= -h && sy <= window.innerHeight + h;
           positions.push({ id: node.id, x: sx, y: sy, w, h, visible: insideViewport });
@@ -1099,15 +1107,17 @@
       // 10. ГЛАВНЫЙ ЦИКЛ РЕНДЕРИНГА И ЖИЗНЕННЫЙ ЦИКЛ
       // -----------------------------------------------------------------------
       let rafId = null;
+      let loopGeneration = 0;
       let lastFrameNow = performance.now();
       let idleAccumulator = 0;
 
-      function renderLoop(now) {
+      function renderLoop(now, generation) {
+        if (generation !== loopGeneration) return;
         if (!state.isRunning || state.isSuspended) {
           rafId = null;
           return;
         }
-        rafId = requestAnimationFrame(renderLoop);
+        rafId = requestAnimationFrame(nextNow => renderLoop(nextNow, generation));
 
         const dtMs = Math.min(now - lastFrameNow, 100);
         lastFrameNow = now;
@@ -1171,26 +1181,41 @@
         }
       }
 
-      function startLoop() {
+      function startLoop(forceRestart = false) {
+        if (forceRestart) {
+          loopGeneration++;
+          if (rafId !== null) cancelAnimationFrame(rafId);
+          rafId = null;
+          idleAccumulator = 0;
+        }
         if (rafId === null && state.isRunning && !state.isSuspended) {
           lastFrameNow = performance.now();
-          rafId = requestAnimationFrame(renderLoop);
+          const generation = loopGeneration;
+          rafId = requestAnimationFrame(now => renderLoop(now, generation));
         }
       }
 
       function stopLoop() {
-        if (rafId !== null) {
-          cancelAnimationFrame(rafId);
-          rafId = null;
-        }
+        loopGeneration++;
+        if (rafId !== null) cancelAnimationFrame(rafId);
+        rafId = null;
       }
 
       function handleSuspend() { state.isSuspended = true; stopLoop(); }
-      function handleResume() { if (!document.hidden) { state.isSuspended = false; registerActivity(); startLoop(); } }
+      function handleResume() {
+        if (!document.hidden) {
+          state.isRunning = true;
+          state.isSuspended = false;
+          registerActivity();
+          startLoop(true);
+        }
+      }
 
       document.addEventListener('visibilitychange', () => document.hidden ? handleSuspend() : handleResume());
       window.addEventListener('pagehide', handleSuspend);
       window.addEventListener('pageshow', handleResume);
+      window.addEventListener('focus', handleResume);
+      renderer.domElement.addEventListener('webglcontextrestored', handleResume);
 
       window.addEventListener('resize', () => {
         camera.aspect = window.innerWidth / window.innerHeight;
@@ -1286,7 +1311,7 @@
           state.isRunning = true;
           state.isSuspended = false;
           registerActivity();
-          startLoop();
+          startLoop(true);
         },
         dispose() {
           stopLoop();
