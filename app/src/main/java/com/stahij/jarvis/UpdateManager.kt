@@ -197,7 +197,7 @@ class UpdateManager(private val context: Context) {
 
     companion object {
         private const val LATEST_RELEASE_API =
-            "https://api.github.com/repos/Stahij/jarvis-android/releases/latest"
+            "https://api.github.com/repos/Stahij/NULLARCH/releases/latest"
         private const val APK_ASSET_NAME = "Jarvis-release.apk"
     }
 }
