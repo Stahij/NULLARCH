@@ -66,6 +66,9 @@ class AtomWorkspaceView(
     private var motionPhase = 0f
     private var lastMotionFrameMs = SystemClock.uptimeMillis()
     private var coreRotationOffset = 0f
+    private var targetCoreRotationOffset = 0f
+    private var coreTiltOffset = 0f
+    private var targetCoreTiltOffset = 0f
     private var downX = 0f
     private var downY = 0f
     private var lastTouchX = 0f
@@ -164,7 +167,11 @@ class AtomWorkspaceView(
 
     fun removeApp(app: LauncherApp) { items.removeAll { it.app.packageName == app.packageName && it.app.className == app.className }; saveLayout(); invalidate() }
 
-    fun rotateWithCore(delta: Float) { coreRotationOffset += delta; invalidate() }
+    fun rotateWithCore(dx: Float, dy: Float) {
+        targetCoreRotationOffset += dx * 0.0065f
+        targetCoreTiltOffset = (targetCoreTiltOffset + dy * 0.0018f).coerceIn(-0.42f, 0.42f)
+        invalidate()
+    }
 
     fun setLabIconScale(value: Float) { iconScale = value.coerceIn(.65f, 1.5f); prefs.edit().putFloat("icon_scale", iconScale).apply(); invalidate() }
     fun setLabOrbitScale(value: Float) { orbitScale = value.coerceIn(.65f, 1.45f); prefs.edit().putFloat("orbit_scale", orbitScale).apply(); invalidate() }
@@ -204,13 +211,31 @@ class AtomWorkspaceView(
         val now = SystemClock.uptimeMillis()
         if (running) motionPhase += ((now - lastMotionFrameMs).coerceAtLeast(0L) / 1000f) * .14f
         lastMotionFrameMs = now
+        val follow = if (running) .34f else .55f
+        coreRotationOffset += (targetCoreRotationOffset - coreRotationOffset) * follow
+        coreTiltOffset += (targetCoreTiltOffset - coreTiltOffset) * follow
 
-        items.filter { it.page == page }.forEachIndexed { index, item ->
+        val projected = items.filter { it.page == page }.map { item ->
             val angle = item.angle + motionPhase + coreRotationOffset
             val radius = base * item.orbit * orbitScale
-            val x = cx + cos(angle.toDouble()).toFloat() * radius
-            val y = cy + sin(angle.toDouble()).toFloat() * radius * .57f
-            val depth = (sin(angle.toDouble()).toFloat() + 1f) * .5f
+            val c = cos(angle.toDouble()).toFloat()
+            val sn = sin(angle.toDouble()).toFloat()
+            val x = cx + c * radius
+            val y = cy + (sn * .57f - c * coreTiltOffset * .35f) * radius
+            val depth = (sn + 1f) * .5f
+            Triple(item, x, y) to depth
+        }.sortedBy { it.second }
+
+        projected.forEach { (entry, depth) ->
+            val (item, x, y) = entry
+            val radius = base * item.orbit * orbitScale
+            val behindCore = depth < .5f &&
+                ((x - cx) * (x - cx)) / (base * base * .19f * .19f) +
+                ((y - cy) * (y - cy)) / (base * base * .17f * .17f) < 1f
+            if (behindCore) {
+                item.rect.setEmpty()
+                return@forEach
+            }
             val scale = .72f + depth * .38f
             val iconSize = 34f * density * scale * iconScale
             val alpha = (155 + depth * 100).toInt()
@@ -238,7 +263,7 @@ class AtomWorkspaceView(
     private fun isCoreAt(x: Float, y: Float): Boolean {
         val cx = width * .5f
         val cy = height * .49f
-        val radius = min(width, height) * .14f
+        val radius = min(width, height) * .205f
         val dx = x - cx
         val dy = y - cy
         return dx * dx + dy * dy <= radius * radius
@@ -261,12 +286,13 @@ class AtomWorkspaceView(
                 downY = event.y
                 lastTouchX = event.x
                 lastTouchY = event.y
-                selected = items.firstOrNull { it.page == page && it.rect.contains(event.x, event.y) }
+                selected = null
                 touchOwner = when {
-                    selected != null -> TouchOwner.ICON
                     isCoreAt(event.x, event.y) -> TouchOwner.CORE
+                    items.firstOrNull { it.page == page && it.rect.contains(event.x, event.y) } != null -> TouchOwner.ICON
                     else -> TouchOwner.BACKGROUND
                 }
+                if (touchOwner == TouchOwner.ICON) selected = items.firstOrNull { it.page == page && it.rect.contains(event.x, event.y) }
                 dragging = false
                 iconOptionsOpened = false
                 gestureDetector.onTouchEvent(event)
