@@ -44,10 +44,10 @@ class OrbitLabDialog(
     private val prefs = context.getSharedPreferences("nullarch_orbit_lab", Context.MODE_PRIVATE)
     private val cyan = Color.rgb(99, 224, 255)
     private val defaults = listOf(
-        Orbit("Вертикальная", 0f, 90f, 0f, 1.58f, .115f),
-        Orbit("Горизонтальная", 0f, 0f, 0f, 1.58f, -.102f),
-        Orbit("Диагональ вправо", 0f, 45f, 35f, 1.62f, .088f),
-        Orbit("Диагональ влево", 0f, -45f, -35f, 1.62f, -.080f)
+        Orbit("Вертикальная", 84f, 92f, 159f, 1.58f, .300f, true),
+        Orbit("Горизонтальная", 83f, 0f, 0f, 1.58f, .300f, true),
+        Orbit("Диагональ вправо", 83f, 50f, 40f, 1.67f, .300f, true),
+        Orbit("Диагональ влево", 83f, -45f, 19f, 1.62f, .257f, true)
     )
     private val orbits = mutableListOf<Orbit>()
     private val dialog = Dialog(context)
@@ -59,24 +59,24 @@ class OrbitLabDialog(
     companion object {
         fun defaultConfigJson(): String {
             val defaults = arrayOf(
-                floatArrayOf(0f, 90f, 0f, 1.58f, .115f),
-                floatArrayOf(0f, 0f, 0f, 1.58f, -.102f),
-                floatArrayOf(0f, 45f, 35f, 1.62f, .088f),
-                floatArrayOf(0f, -45f, -35f, 1.62f, -.080f)
+                floatArrayOf(84f, 92f, 159f, 1.58f, .300f),
+                floatArrayOf(83f, 0f, 0f, 1.58f, .300f),
+                floatArrayOf(83f, 50f, 40f, 1.67f, .300f),
+                floatArrayOf(83f, -45f, 19f, 1.62f, .257f)
             )
             val names = arrayOf("vertical", "horizontal", "diagonal-right", "diagonal-left")
             val array = JSONArray()
             defaults.forEachIndexed { i, v ->
                 array.put(JSONObject().put("index", i).put("name", names[i])
                     .put("rotationX", v[0].toDouble()).put("rotationY", v[1].toDouble()).put("rotationZ", v[2].toDouble())
-                    .put("radius", v[3].toDouble()).put("speedRadPerSec", v[4].toDouble()).put("visible", false))
+                    .put("radius", v[3].toDouble()).put("speedRadPerSec", v[4].toDouble()).put("visible", true))
             }
             return array.toString()
         }
     }
 
     fun show() {
-        load(prefs.getString("configs", initialJson) ?: initialJson)
+        load(prefs.getString("configs_calibrated_1", initialJson) ?: initialJson)
         buildUi()
         renderOrbit(0)
         dialog.setContentView(buildRoot)
@@ -136,10 +136,10 @@ class OrbitLabDialog(
             val x = Math.toRadians(o.x.toDouble())
             val y = Math.toRadians(o.y.toDouble())
             val z = Math.toRadians(o.z.toDouble())
-            // Three.js Euler XYZ rotation applied to the local +Z plane normal.
-            val nx = cos(x) * sin(y) * cos(z) + sin(x) * sin(z)
-            val ny = sin(x) * sin(y) * cos(z) - cos(x) * sin(z)
-            val nz = cos(y) * cos(z)
+            // Three.js Euler XYZ: rotate the local +Z normal by the same Euler matrix.
+            val nx = sin(y)
+            val ny = -sin(x) * cos(y)
+            val nz = cos(x) * cos(y)
             planes.put(JSONObject().put("index", i + 1).put("name", o.name)
                 .put("rotationEulerXYZ_deg", JSONObject().put("x", o.x.toDouble()).put("y", o.y.toDouble()).put("z", o.z.toDouble()))
                 .put("planeNormal", JSONObject().put("x", nx).put("y", ny).put("z", nz))
