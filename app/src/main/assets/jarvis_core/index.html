@@ -510,19 +510,75 @@
 
       // Four invisible mathematical orbital planes. No orbit meshes/lines are rendered.
       const ORBIT_PLANE_CONFIG = [
-        { name: 'vertical',        rotationX: Math.PI * 0.5, rotationY: 0, rotationZ: 0,                speed:  0.115, radius: 1.58 },
-        { name: 'horizontal',      rotationX: 0,             rotationY: 0, rotationZ: 0,                speed: -0.102, radius: 1.58 },
-        { name: 'diagonal-right',  rotationX: Math.PI * 0.5, rotationY: 0, rotationZ: Math.PI * 0.25,  speed:  0.088, radius: 1.62 },
-        { name: 'diagonal-left',   rotationX: Math.PI * 0.5, rotationY: 0, rotationZ: -Math.PI * 0.25, speed: -0.080, radius: 1.62 }
+        { name: 'vertical', rotationX: 90, rotationY: 0, rotationZ: 0, speedRadPerSec: 0.115, radius: 1.58, visible: false },
+        { name: 'horizontal', rotationX: 0, rotationY: 0, rotationZ: 0, speedRadPerSec: -0.102, radius: 1.58, visible: false },
+        { name: 'diagonal-right', rotationX: 90, rotationY: 0, rotationZ: 45, speedRadPerSec: 0.088, radius: 1.62, visible: false },
+        { name: 'diagonal-left', rotationX: 90, rotationY: 0, rotationZ: -45, speedRadPerSec: -0.080, radius: 1.62, visible: false }
       ];
       const workspaceOrbitPhases = [0, 0, 0, 0];
+      function createOrbitPreview(config) {
+        const points = [];
+        for (let i = 0; i < 128; i++) {
+          const a = (i / 128) * Math.PI * 2;
+          points.push(new THREE.Vector3(Math.cos(a) * config.radius, Math.sin(a) * config.radius * 0.72, 0));
+        }
+        const geometry = new THREE.BufferGeometry().setFromPoints(points);
+        const material = new THREE.LineBasicMaterial({
+          color: 0x61dfff, transparent: true, opacity: 0.48,
+          depthTest: true, depthWrite: false, toneMapped: false
+        });
+        const line = new THREE.LineLoop(geometry, material);
+        line.name = 'orbit-preview-' + config.name;
+        line.frustumCulled = false;
+        line.renderOrder = 1;
+        return line;
+      }
+      function updateOrbitPreview(config) {
+        if (config.orbitLine) {
+          config.group.remove(config.orbitLine);
+          config.orbitLine.geometry.dispose();
+          config.orbitLine.material.dispose();
+          config.orbitLine = null;
+        }
+        if (config.visible) {
+          config.orbitLine = createOrbitPreview(config);
+          config.group.add(config.orbitLine);
+        }
+      }
       const workspacePlaneGroups = ORBIT_PLANE_CONFIG.map(config => {
         const group = new THREE.Group();
         group.name = 'workspace-orbit-plane-' + config.name;
-        group.rotation.set(config.rotationX, config.rotationY, config.rotationZ);
+        group.rotation.set(
+          THREE.MathUtils.degToRad(config.rotationX),
+          THREE.MathUtils.degToRad(config.rotationY),
+          THREE.MathUtils.degToRad(config.rotationZ)
+        );
         workspaceRoot.add(group);
-        return { ...config, group };
+        return { ...config, group, orbitLine: null };
       });
+      function applyOrbitConfigurations(json) {
+        let input;
+        try { input = typeof json === 'string' ? JSON.parse(json) : json; } catch (_) { return false; }
+        if (!Array.isArray(input)) return false;
+        workspacePlaneGroups.forEach((config, index) => {
+          const item = input[index];
+          if (!item) return;
+          config.rotationX = THREE.MathUtils.clamp(Number(item.rotationX) || 0, -180, 180);
+          config.rotationY = THREE.MathUtils.clamp(Number(item.rotationY) || 0, -180, 180);
+          config.rotationZ = THREE.MathUtils.clamp(Number(item.rotationZ) || 0, -180, 180);
+          config.radius = THREE.MathUtils.clamp(Number(item.radius) || config.radius, 0.60, 2.80);
+          config.speedRadPerSec = THREE.MathUtils.clamp(Number(item.speedRadPerSec) || 0, -0.30, 0.30);
+          config.visible = item.visible === true;
+          config.group.rotation.set(
+            THREE.MathUtils.degToRad(config.rotationX),
+            THREE.MathUtils.degToRad(config.rotationY),
+            THREE.MathUtils.degToRad(config.rotationZ)
+          );
+          updateOrbitPreview(config);
+        });
+        registerActivity();
+        return true;
+      }
       const workspaceRaycaster = new THREE.Raycaster();
       const workspaceRayHits = [];
       const workspaceScreen = new THREE.Vector3();
@@ -915,7 +971,7 @@
         swarmMat.uniforms.uActiveNodeCount.value = 0;
         const step = Math.max(0, Number(dt) || 0);
         for (let i = 0; i < workspaceOrbitPhases.length; i++) {
-          workspaceOrbitPhases[i] = (workspaceOrbitPhases[i] + step * workspacePlaneGroups[i].speed) % (Math.PI * 2);
+          workspaceOrbitPhases[i] = (workspaceOrbitPhases[i] + step * workspacePlaneGroups[i].speedRadPerSec) % (Math.PI * 2);
         }
         workspaceRoot.scale.setScalar(state.currentScale * state.labSize);
         coreRoot.updateMatrixWorld(true);
@@ -1248,6 +1304,7 @@
             state.aiStateKey = key;
           }
         },
+        setOrbitConfigurations(json) { return applyOrbitConfigurations(json); },
         setWorkspaceApps(json) { setWorkspaceAppsJson(json); },
         setWorkspacePage(page) { workspacePage = Math.max(0, Number(page) || 0); },
         setWorkspaceNodeLayout(id, angle, orbit, page) {
