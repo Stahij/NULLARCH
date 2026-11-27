@@ -24,6 +24,7 @@ class LauncherActivity : Activity() {
     private val cyan = Color.rgb(99, 224, 255)
     private val bg = Color.rgb(3, 8, 20)
     private var installedApps: List<LauncherApp> = emptyList()
+    private var appOptionsDialog: AlertDialog? = null
     private val selectedCore = JarvisCoreBridge.CoreTheme.PLASMA
     private val orbitPrefs by lazy { getSharedPreferences("nullarch_orbit_lab", MODE_PRIVATE) }
 
@@ -59,7 +60,14 @@ class LauncherActivity : Activity() {
     }
 
     override fun onPause() {
-        if (::workspace.isInitialized) workspace.pauseMotion()
+        if (::workspace.isInitialized) {
+            workspace.pauseMotion()
+            workspace.cancelPendingTouch()
+        }
+        // A shortcut options dialog belongs to the launcher, not to the app
+        // opened from it. Never leave it suspended above the launcher task.
+        appOptionsDialog?.dismiss()
+        appOptionsDialog = null
         if (::coreView.isInitialized) coreView.onPause()
         super.onPause()
     }
@@ -433,14 +441,20 @@ class LauncherActivity : Activity() {
     private fun CoreLabSettings.toValues() = intArrayOf(coreSize, brightness, intensity, iconSize, orbitScale, glow)
 
     private fun showAppOptions(app: LauncherApp) {
-        AlertDialog.Builder(this).setTitle(app.label)
+        appOptionsDialog?.dismiss()
+        val dialog = AlertDialog.Builder(this).setTitle(app.label)
             .setItems(arrayOf("Информация о приложении", "Удалить ярлык с рабочего стола")) { _, which ->
                 when (which) {
                     0 -> try { startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
                         android.net.Uri.parse("package:" + app.packageName))) } catch (_: Exception) { }
                     1 -> workspace.removeApp(app)
                 }
-            }.show()
+            }.create()
+        dialog.setOnDismissListener {
+            if (appOptionsDialog === dialog) appOptionsDialog = null
+        }
+        appOptionsDialog = dialog
+        dialog.show()
     }
 
     private fun showCoreMenu() {
