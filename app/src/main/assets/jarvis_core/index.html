@@ -851,7 +851,7 @@
 
       function disposeWorkspaceSprites() {
         workspaceSprites.forEach(entry => {
-          coreRoot.remove(entry.sprite);
+          workspaceRoot.remove(entry.sprite);
           entry.sprite.material.map?.dispose();
           entry.sprite.material.dispose();
         });
