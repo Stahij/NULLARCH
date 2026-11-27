@@ -12,8 +12,8 @@ android {
         applicationId = "com.stahij.jarvis.preview"
         minSdk = 26
         targetSdk = 35
-        versionCode = 69
-        versionName = "1.9.11"
+        versionCode = 70
+        versionName = "1.9.12"
 
         ndk {
             abiFilters += listOf("arm64-v8a")
@@ -71,7 +71,7 @@ android {
 // Filament stays isolated in Debug until the renderer spike passes device tests.
 // Visual effects 1.7.5: expanded halo, pulse breathing and particle field.
 // Plasma UI 1.8.2: one radial 3D SDF surface fuses the core with all app droplets; logos remain crisp.
-// NULLARCH 1.9.11: four independent orbital planes and robust WebView animation-loop resume after idle.
+// NULLARCH 1.9.12: invisible orbital paths, four correctly oriented planes, clean particle-only background.
 dependencies {
     debugImplementation("com.google.android.filament:filament-android:1.57.1")
 }
