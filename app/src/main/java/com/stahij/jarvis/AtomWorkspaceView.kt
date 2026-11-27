@@ -286,7 +286,7 @@ class AtomWorkspaceView(
     private fun isCoreAt(x: Float, y: Float): Boolean {
         val cx = width * .5f
         val cy = height * .49f
-        val radius = height * .22f
+        val radius = height * .24f
         val dx = x - cx
         val dy = y - cy
         return dx * dx + dy * dy <= radius * radius
