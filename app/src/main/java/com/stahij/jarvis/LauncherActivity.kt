@@ -85,8 +85,15 @@ class LauncherActivity : Activity() {
             onOpenDrawer = { showAppDrawer() },
             onOpenLab = { showCoreLab() },
             onAppOptions = { showAppOptions(it) },
-            onRotateCore = { dx, dy -> workspace.rotateWithCore(dx, dy); coreView.bridge.rotateCore(dx, dy) }
+            onRotateCore = { dx, dy -> coreView.bridge.rotateCore(dx, dy) },
+            onWorkspaceChanged = {
+                coreView.bridge.setWorkspaceApps(workspace.workspaceAppsJson())
+                coreView.bridge.setWorkspacePage(workspace.currentPage)
+            }
         )
+        coreView.setNodePositionsListener { workspace.updateWebGlNodePositions(it) }
+        coreView.bridge.setWorkspaceApps(workspace.workspaceAppsJson())
+        coreView.bridge.setWorkspacePage(workspace.currentPage)
         applyLabSettings(loadLabSettings())
         val root = FrameLayout(this).apply {
             setBackgroundColor(Color.rgb(3, 8, 20))
@@ -163,8 +170,11 @@ class LauncherActivity : Activity() {
             .25f + s.glow / 1000f * 1.5f,
             s.saturation
         )
-        workspace.setLabIconScale(.65f + s.iconSize / 1000f * .85f)
-        workspace.setLabOrbitScale(.65f + s.orbitScale / 1000f * .8f)
+        val iconScale = .65f + s.iconSize / 1000f * .85f
+        val orbitScale = .65f + s.orbitScale / 1000f * .8f
+        workspace.setLabIconScale(iconScale)
+        workspace.setLabOrbitScale(orbitScale)
+        coreView.bridge.setWorkspaceScales(iconScale, orbitScale)
     }
 
     private fun promptSaveLabProfile(settings: CoreLabSettings) {
