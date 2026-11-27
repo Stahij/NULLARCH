@@ -276,7 +276,7 @@ class OrbitLabDialog(
         row.addView(TextView(context).apply {
             text = label; textSize = 10f; setTextColor(Color.rgb(218, 232, 244))
         }, LinearLayout.LayoutParams(0, dp(22), 1f))
-        val value = TextView(context).apply { text = String.format(Locale.US, format, initial); textSize = 10f; setTextColor(cyan }
+        val value = TextView(context).apply { text = String.format(Locale.US, format, initial); textSize = 10f; setTextColor(cyan) }
         row.addView(value); controls.addView(row)
         val bar = SeekBar(context).apply {
             max = maxProgress; progress = ((initial - min) / step).toInt().coerceIn(0, maxProgress)
