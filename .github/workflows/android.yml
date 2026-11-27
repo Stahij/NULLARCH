@@ -157,7 +157,7 @@ jobs:
           fi
           echo "tag=$EXPECTED_TAG" >> "$GITHUB_OUTPUT"
       - name: Publish GitHub Release for in-app updates
-        if: startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/heads/release/') || (github.event_name == 'workflow_dispatch' && inputs.publish_release)
+        if: startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/heads/release/') || (github.event_name == 'workflow_dispatch' && inputs.publish_release) || (github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[release-build]'))
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ inputs.release_tag || steps.release_tag.outputs.tag || github.ref_name }}
