@@ -924,7 +924,12 @@
           const viewDepth = Math.max(0.8, camera.position.z - viewPos.z);
           const pixelScale = window.innerHeight / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) * viewDepth);
           const w = sprite.scale.x * pixelScale, h = sprite.scale.y * pixelScale;
-          positions.push({ id: node.id, x: sx, y: sy, w, h, visible: !occluded });
+          // Hit testing is handled by Android. Do not discard the native hitbox just
+          // because the icon's center ray crosses the core; the sprite may still be visible
+          // around the sphere's silhouette. Depth is handled by the WebGL renderer itself.
+          const insideViewport = sx >= -w && sx <= window.innerWidth + w &&
+            sy >= -h && sy <= window.innerHeight + h;
+          positions.push({ id: node.id, x: sx, y: sy, w, h, visible: insideViewport });
         });
         if (workspaceFrame % 6 === 0 && window.AndroidLauncher &&
             typeof window.AndroidLauncher.onNodePositions === 'function') {
