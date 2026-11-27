@@ -569,7 +569,7 @@
           config.rotationY = THREE.MathUtils.clamp(Number(item.rotationY) || 0, -180, 180);
           config.rotationZ = THREE.MathUtils.clamp(Number(item.rotationZ) || 0, -180, 180);
           config.radius = THREE.MathUtils.clamp(Number(item.radius) || config.radius, 0.60, 2.80);
-          config.speedRadPerSec = THREE.MathUtils.clamp(Number(item.speedRadPerSec) || 0, -0.30, 0.30);
+          config.speedRadPerSec = THREE.MathUtils.clamp(Number(item.speedRadPerSec) || 0, -0.45, 0.45);
           config.visible = item.visible === true;
           config.group.rotation.set(
             THREE.MathUtils.degToRad(config.rotationX),
@@ -1138,7 +1138,6 @@
       let rafId = null;
       let loopGeneration = 0;
       let lastFrameNow = performance.now();
-      let idleAccumulator = 0;
 
       function renderLoop(now, generation) {
         if (generation !== loopGeneration) return;
@@ -1148,21 +1147,16 @@
         }
         rafId = requestAnimationFrame(nextNow => renderLoop(nextNow, generation));
 
-        const dtMs = Math.min(now - lastFrameNow, 100);
+        const dtMs = Math.min(Math.max(now - lastFrameNow, 0), 50);
         lastFrameNow = now;
 
         if (!state.isIdlePowerSave && (now - state.lastInteractionTime) > 8000) {
           state.isIdlePowerSave = true;
         }
 
-        if (state.isIdlePowerSave) {
-          idleAccumulator += dtMs;
-          if (idleAccumulator < 32.5) return;
-          idleAccumulator %= 32.5;
-        }
-
+        // Keep the simulation at real-time cadence even after idle; only rendering
+        // quality may adapt. Never slow orbital/core animation or skip idle frames.
         const dtSec = dtMs * 0.001;
-        const tempoFactor = state.isIdlePowerSave ? 0.65 : 1.0;
 
         const targetPreset = AI_STATES[state.aiStateKey] || AI_STATES.idle;
         const lerpRate = Math.min(1.0, dtSec * 5.5);
@@ -1173,7 +1167,7 @@
         state.currentHueShift  += (targetPreset.hueShift - state.currentHueShift) * lerpRate;
         state.currentScale     += (targetPreset.scale - state.currentScale) * lerpRate;
 
-        state.simTime += dtSec * state.currentSpeed * tempoFactor;
+        state.simTime += dtSec * state.currentSpeed;
         const t = state.simTime;
 
         if (t >= state.nextSurgeAt && state.surgeValue <= 0.001) {
@@ -1215,7 +1209,7 @@
           loopGeneration++;
           if (rafId !== null) cancelAnimationFrame(rafId);
           rafId = null;
-          idleAccumulator = 0;
+          
         }
         if (rafId === null && state.isRunning && !state.isSuspended) {
           lastFrameNow = performance.now();
