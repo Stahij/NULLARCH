@@ -44,10 +44,10 @@ class OrbitLabDialog(
     private val prefs = context.getSharedPreferences("nullarch_orbit_lab", Context.MODE_PRIVATE)
     private val cyan = Color.rgb(99, 224, 255)
     private val defaults = listOf(
-        Orbit("Вертикальная", 84f, 92f, 159f, 1.58f, .450f, true),
+        Orbit("Вертикальная", 84f, 92f, 159f, 1.58f, .5625f, true),
         Orbit("Горизонтальная", 83f, 0f, 0f, 1.58f, .300f, true),
         Orbit("Диагональ вправо", 83f, 50f, 40f, 1.67f, .300f, true),
-        Orbit("Диагональ влево", 83f, -45f, 19f, 1.62f, .3855f, true)
+        Orbit("Диагональ влево", 83f, -45f, 19f, 1.62f, .481875f, true)
     )
     private val orbits = mutableListOf<Orbit>()
     private val dialog = Dialog(context)
@@ -59,10 +59,10 @@ class OrbitLabDialog(
     companion object {
         fun defaultConfigJson(): String {
             val defaults = arrayOf(
-                floatArrayOf(84f, 92f, 159f, 1.58f, .450f),
+                floatArrayOf(84f, 92f, 159f, 1.58f, .5625f),
                 floatArrayOf(83f, 0f, 0f, 1.58f, .300f),
-                floatArrayOf(83f, 50f, 40f, 1.67f, .450f),
-                floatArrayOf(83f, -45f, 19f, 1.62f, .3855f)
+                floatArrayOf(83f, 50f, 40f, 1.67f, .5625f),
+                floatArrayOf(83f, -45f, 19f, 1.62f, .481875f)
             )
             val names = arrayOf("vertical", "horizontal", "diagonal-right", "diagonal-left")
             val array = JSONArray()
@@ -76,7 +76,23 @@ class OrbitLabDialog(
     }
 
     fun show() {
-        load(prefs.getString("configs_fast_1", initialJson) ?: initialJson)
+        val upgraded = prefs.getString("configs_fast_2", null)
+        if (upgraded != null) {
+            load(upgraded)
+        } else {
+            val previous = prefs.getString("configs_fast_1", null)
+            if (previous != null) {
+                val migrated = JSONArray(previous)
+                for (i in 0 until migrated.length()) {
+                    val item = migrated.optJSONObject(i) ?: continue
+                    val speed = item.optDouble("speedRadPerSec", 0.0) * 1.25
+                    item.put("speedRadPerSec", speed.coerceIn(-0.5625, 0.5625))
+                }
+                val migratedJson = migrated.toString()
+                load(migratedJson)
+                prefs.edit().putString("configs_fast_2", migratedJson).apply()
+            } else load(initialJson)
+        }
         buildUi()
         renderOrbit(0)
         dialog.setContentView(buildRoot)
@@ -109,7 +125,7 @@ class OrbitLabDialog(
                         y = j.optDouble("rotationY", d.y.toDouble()).toFloat().coerceIn(-180f, 180f),
                         z = j.optDouble("rotationZ", d.z.toDouble()).toFloat().coerceIn(-180f, 180f),
                         radius = j.optDouble("radius", d.radius.toDouble()).toFloat().coerceIn(.60f, 2.80f),
-                        speed = j.optDouble("speedRadPerSec", d.speed.toDouble()).toFloat().coerceIn(-.45f, .45f),
+                        speed = j.optDouble("speedRadPerSec", d.speed.toDouble()).toFloat().coerceIn(-.5625f, .5625f),
                         visible = j.optBoolean("visible", false)
                     ))
                 }
@@ -215,7 +231,7 @@ class OrbitLabDialog(
 
     private fun changed() {
         val json = configArray().toString()
-        prefs.edit().putString("configs_fast_1", json).apply()
+        prefs.edit().putString("configs_fast_2", json).apply()
         onConfigChanged(json)
         updateCoordinates()
     }
@@ -254,7 +270,7 @@ class OrbitLabDialog(
         angleControl("Наклон Y", o.y) { o.y = it }
         angleControl("Поворот Z", o.z) { o.z = it }
         floatControl("Радиус", .60f, 2.80f, o.radius, 220, .01f, "%.2f") { o.radius = it }
-        floatControl("Скорость (рад/с)", -.45f, .45f, o.speed, 900, .001f, "%+.3f") { o.speed = it }
+        floatControl("Скорость (рад/с)", -.5625f, .5625f, o.speed, 1125, .001f, "%+.3f") { o.speed = it }
         updateCoordinates()
     }
 
