@@ -569,7 +569,7 @@
           config.rotationY = THREE.MathUtils.clamp(Number(item.rotationY) || 0, -180, 180);
           config.rotationZ = THREE.MathUtils.clamp(Number(item.rotationZ) || 0, -180, 180);
           config.radius = THREE.MathUtils.clamp(Number(item.radius) || config.radius, 0.60, 2.80);
-          config.speedRadPerSec = THREE.MathUtils.clamp(Number(item.speedRadPerSec) || 0, -0.45, 0.45);
+          config.speedRadPerSec = THREE.MathUtils.clamp(Number(item.speedRadPerSec) || 0, -0.5625, 0.5625);
           config.visible = item.visible === true;
           config.group.rotation.set(
             THREE.MathUtils.degToRad(config.rotationX),
