@@ -90,6 +90,7 @@ class AtomWorkspaceView(
     private var autoPlacement = prefs.getBoolean("auto_placement_v1", true)
     private var labGestureTriggered = false
     private var iconOptionsOpened = false
+    private var longPressConsumed = false
     private var iconScale = prefs.getFloat("icon_scale", 1f).coerceIn(.65f, 1.5f)
     private var orbitScale = prefs.getFloat("orbit_scale", 1f).coerceIn(.65f, 1.45f)
     private val gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
@@ -110,9 +111,13 @@ class AtomWorkspaceView(
         override fun onLongPress(e: MotionEvent) {
             val appItem = items.firstOrNull { it.page == page && it.rect.contains(e.x, e.y) }
             if (appItem != null) {
+                longPressConsumed = true
                 iconOptionsOpened = true
                 onAppOptions(appItem.app)
-            } else if (isCoreAt(e.x, e.y)) onOpenSettings()
+            } else if (isCoreAt(e.x, e.y)) {
+                longPressConsumed = true
+                onOpenSettings()
+            }
         }
 
         override fun onFling(e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
@@ -324,6 +329,7 @@ class AtomWorkspaceView(
                 dragStartOrbit = selected?.orbit ?: .30f
                 dragging = false
                 iconOptionsOpened = false
+                longPressConsumed = false
                 gestureDetector.onTouchEvent(event)
                 return true
             }
@@ -358,6 +364,17 @@ class AtomWorkspaceView(
             }
             MotionEvent.ACTION_UP -> {
                 if (labGestureTriggered) { labGestureTriggered = false; selected = null; dragging = false; return true }
+                // A long press opens the options dialog only. The ACTION_UP must
+                // not also trigger a tap/launch, especially when an icon overlaps
+                // the core hit region and is owned by the core gesture handler.
+                if (longPressConsumed) {
+                    longPressConsumed = false
+                    selected = null
+                    touchOwner = TouchOwner.NONE
+                    dragging = false
+                    iconOptionsOpened = false
+                    return true
+                }
                 if (selected == null) {
                     val dx = event.x - downX
                     val dy = event.y - downY
