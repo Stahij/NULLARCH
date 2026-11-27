@@ -73,7 +73,7 @@ class OrbitLabDialog(
     }
 
     fun show() {
-        load(initialJson = prefs.getString("configs", initialJsonFallback()) ?: initialJsonFallback())
+        load(prefs.getString("configs", initialJson) ?: initialJson)
         buildUi()
         renderOrbit(0)
         dialog.setContentView(buildRoot)
@@ -86,6 +86,7 @@ class OrbitLabDialog(
             addFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
             attributes = attributes.apply { dimAmount = .42f }
         }
+        onConfigChanged(configArray().toString())
         onPreviewEnabled(true)
     }
 
@@ -256,7 +257,7 @@ class OrbitLabDialog(
         row.addView(TextView(context).apply {
             text = label; textSize = 10f; setTextColor(Color.rgb(218, 232, 244))
         }, LinearLayout.LayoutParams(0, dp(22), 1f))
-        val value = TextView(context).apply { text = initial.toInt().toString() + "°"; textSize = 10f; setTextColor(cyan }
+        val value = TextView(context).apply { text = initial.toInt().toString() + "°"; textSize = 10f; setTextColor(cyan) }
         row.addView(value); controls.addView(row)
         val bar = SeekBar(context).apply { max = 360; progress = (initial + 180f).toInt().coerceIn(0, 360) }
         bar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
