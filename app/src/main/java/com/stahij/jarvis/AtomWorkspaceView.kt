@@ -234,10 +234,11 @@ class AtomWorkspaceView(
                     if (!node.optBoolean("visible", false)) {
                         item.rect.setEmpty()
                     } else {
-                        val x = node.optDouble("x", -1000.0).toFloat()
-                        val y = node.optDouble("y", -1000.0).toFloat()
-                        val w = node.optDouble("w", 0.0).toFloat().coerceIn(24f * density, 140f * density)
-                        val h = node.optDouble("h", 0.0).toFloat().coerceIn(28f * density, 170f * density)
+                        // WebView reports CSS pixels; MotionEvent uses Android physical pixels.
+                        val x = node.optDouble("x", -1000.0).toFloat() * density
+                        val y = node.optDouble("y", -1000.0).toFloat() * density
+                        val w = (node.optDouble("w", 0.0).toFloat() * density).coerceIn(24f * density, 140f * density)
+                        val h = (node.optDouble("h", 0.0).toFloat() * density).coerceIn(28f * density, 170f * density)
                         item.rect.set(x - w * .5f, y - h * .5f, x + w * .5f, y + h * .5f)
                     }
                 }
@@ -375,11 +376,16 @@ class AtomWorkspaceView(
 
     private fun launch(app: LauncherApp) {
         try {
-            context.startActivity(android.content.Intent(android.content.Intent.ACTION_MAIN)
-                .addCategory(android.content.Intent.CATEGORY_LAUNCHER)
-                .setClassName(app.packageName, app.className)
-                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
-        } catch (_: Exception) { }
+            val intent = context.packageManager.getLaunchIntentForPackage(app.packageName)
+                ?: android.content.Intent(android.content.Intent.ACTION_MAIN)
+                    .addCategory(android.content.Intent.CATEGORY_LAUNCHER)
+                    .setClassName(app.packageName, app.className)
+            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(intent)
+        } catch (error: Exception) {
+            android.util.Log.e("NULLARCH", "Cannot launch ${app.packageName}/${app.className}", error)
+            android.widget.Toast.makeText(context, "Не удалось открыть ${app.label}", android.widget.Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun saveLayout() {
