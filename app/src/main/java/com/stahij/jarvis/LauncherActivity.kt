@@ -28,7 +28,7 @@ class LauncherActivity : Activity() {
     private val orbitPrefs by lazy { getSharedPreferences("nullarch_orbit_lab", MODE_PRIVATE) }
 
     private fun currentOrbitConfigJson(): String =
-        orbitPrefs.getString("configs", OrbitLabDialog.defaultConfigJson()) ?: OrbitLabDialog.defaultConfigJson()
+        orbitPrefs.getString("configs_fast_1", OrbitLabDialog.defaultConfigJson()) ?: OrbitLabDialog.defaultConfigJson()
 
     private fun showOrbitLab() {
         OrbitLabDialog(
@@ -509,7 +509,21 @@ class LauncherActivity : Activity() {
                 cornerRadius = dp(15).toFloat()
             }
         }
-        panel.addView(search, LinearLayout.LayoutParams(-1, dp(48)).apply { topMargin = dp(10); bottomMargin = dp(14) })
+        panel.addView(search, LinearLayout.LayoutParams(-1, dp(48)).apply { topMargin = dp(10); bottomMargin = dp(8) })
+
+        val placementMode = TextView(this).apply {
+            text = if (workspace.isAutoPlacementEnabled()) "РАЗМЕЩЕНИЕ: АВТО • ОСИ ПО ОЧЕРЕДИ" else "РАЗМЕЩЕНИЕ: ВРУЧНУЮ"
+            textSize = 11f; gravity = Gravity.CENTER; setTextColor(cyan)
+            setPadding(dp(8), dp(6), dp(8), dp(6))
+            setOnClickListener {
+                val auto = workspace.togglePlacementMode()
+                text = if (auto) "РАЗМЕЩЕНИЕ: АВТО • ОСИ ПО ОЧЕРЕДИ" else "РАЗМЕЩЕНИЕ: ВРУЧНУЮ"
+                android.widget.Toast.makeText(this@LauncherActivity,
+                    if (auto) "Новые ярлыки будут распределяться автоматически по 4 осям" else "Новые ярлыки добавляются в нейтральную точку — размести их пальцем",
+                    android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
+        panel.addView(placementMode, LinearLayout.LayoutParams(-1, dp(38)).apply { bottomMargin = dp(8) })
 
         val grid = android.widget.GridLayout(this).apply { columnCount = 4; useDefaultMargins = false }
         val scroll = android.widget.ScrollView(this).apply { isFillViewport = true }
