@@ -76,6 +76,7 @@ class LauncherActivity : Activity() {
             bridge.setQuality(JarvisCoreBridge.CoreQuality.AUTO)
             bridge.setAssistantState(JarvisCoreBridge.AssistantState.IDLE)
         }
+        coreView.bridge.setNativeTouchOwner(true)
         workspace = AtomWorkspaceView(
             this,
             installedApps,
