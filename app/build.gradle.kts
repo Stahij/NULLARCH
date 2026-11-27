@@ -71,7 +71,7 @@ android {
 // Filament stays isolated in Debug until the renderer spike passes device tests.
 // Visual effects 1.7.5: expanded halo, pulse breathing and particle field.
 // Plasma UI 1.8.2: one radial 3D SDF surface fuses the core with all app droplets; logos remain crisp.
-// NULLARCH 1.9.13: live orbital lab, XYZ plane controls, radius/speed, temporary preview and JSON coordinate export.
+// NULLARCH 1.9.13: live orbital lab, XYZ plane controls, radius/speed, temporary preview and JSON coordinate export [release-build].
 dependencies {
     debugImplementation("com.google.android.filament:filament-android:1.57.1")
 }
