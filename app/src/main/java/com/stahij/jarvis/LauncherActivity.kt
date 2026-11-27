@@ -25,6 +25,19 @@ class LauncherActivity : Activity() {
     private val bg = Color.rgb(3, 8, 20)
     private var installedApps: List<LauncherApp> = emptyList()
     private val selectedCore = JarvisCoreBridge.CoreTheme.PLASMA
+    private val orbitPrefs by lazy { getSharedPreferences("nullarch_orbit_lab", MODE_PRIVATE) }
+
+    private fun currentOrbitConfigJson(): String =
+        orbitPrefs.getString("configs", OrbitLabDialog.defaultConfigJson()) ?: OrbitLabDialog.defaultConfigJson()
+
+    private fun showOrbitLab() {
+        OrbitLabDialog(
+            this,
+            currentOrbitConfigJson(),
+            onConfigChanged = { json -> coreView.bridge.setOrbitConfigurations(json) },
+            onPreviewEnabled = { enabled -> coreView.bridge.setOrbitPreviewEnabled(enabled) }
+        ).show()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -37,7 +50,11 @@ class LauncherActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
-        if (::coreView.isInitialized) coreView.onResume()
+        if (::coreView.isInitialized) {
+            coreView.onResume()
+            coreView.bridge.setOrbitConfigurations(currentOrbitConfigJson())
+            coreView.bridge.setOrbitPreviewEnabled(false)
+        }
         if (::workspace.isInitialized) workspace.resumeMotion()
     }
 
@@ -98,6 +115,8 @@ class LauncherActivity : Activity() {
         coreView.bridge.setWorkspaceApps(workspace.workspaceAppsJson())
         coreView.bridge.setWorkspacePage(workspace.currentPage)
         applyLabSettings(loadLabSettings())
+        coreView.bridge.setOrbitConfigurations(currentOrbitConfigJson())
+        coreView.bridge.setOrbitPreviewEnabled(false)
         val root = FrameLayout(this).apply {
             setBackgroundColor(Color.rgb(3, 8, 20))
             addView(coreView, FrameLayout.LayoutParams(-1, -1))
@@ -292,6 +311,10 @@ class LauncherActivity : Activity() {
                 }
             }
         }, LinearLayout.LayoutParams(dp(64), dp(30)))
+        header.addView(TextView(this).apply {
+            text = "ОРБИТЫ"; textSize = 9f; typeface = Typeface.DEFAULT_BOLD; setTextColor(cyan); gravity = Gravity.CENTER
+            setOnClickListener { showOrbitLab() }
+        }, LinearLayout.LayoutParams(dp(58), dp(30)))
         header.addView(TextView(this).apply {
             text = "✕"; textSize = 17f; setTextColor(cyan); gravity = Gravity.CENTER
             setOnClickListener { dialog.dismiss() }
