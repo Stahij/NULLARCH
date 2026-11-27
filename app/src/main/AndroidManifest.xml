@@ -22,7 +22,7 @@
         <activity android:name=".OnlineKnowledgeActivity" android:exported="false" />
         <activity android:name=".MainActivity" android:exported="false" />
         <activity android:name=".ChatHubActivity" android:exported="false" android:taskAffinity="com.stahij.jarvis.preview.app" />
-        <activity android:name=".LauncherActivity" android:exported="true" android:launchMode="singleTask" android:taskAffinity="com.stahij.jarvis.preview.home" android:excludeFromRecents="true">
+        <activity android:name=".LauncherActivity" android:exported="true" android:launchMode="singleTask" android:taskAffinity="com.stahij.jarvis.preview.home">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.HOME" />
