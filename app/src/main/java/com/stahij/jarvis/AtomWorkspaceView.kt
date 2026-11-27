@@ -84,6 +84,10 @@ class AtomWorkspaceView(
     private var touchOwner = TouchOwner.NONE
     private var dragging = false
     private var downAt = 0L
+    private var dragStartAngle = 0f
+    private var dragStartOrbit = .30f
+    private var movedSinceDown = false
+    private var autoPlacement = prefs.getBoolean("auto_placement_v1", true)
     private var labGestureTriggered = false
     private var iconOptionsOpened = false
     private var iconScale = prefs.getFloat("icon_scale", 1f).coerceIn(.65f, 1.5f)
@@ -166,10 +170,11 @@ class AtomWorkspaceView(
         val id = app.packageName + "/" + app.className
         if (items.any { it.app.packageName + "/" + it.app.className == id }) return false
         val pageItems = items.count { it.page == page }
-        // Golden-angle placement avoids stacking newly added icons in the same
-        // screen-space sectors; orbit lanes alternate to keep labels separated.
-        val angle = (pageItems * 2.3999632f) % (Math.PI.toFloat() * 2f)
-        val orbit = (.20f + (pageItems % 5) * .06f).coerceIn(.20f, .44f)
+        // Auto mode distributes new icons around a golden-angle spiral.
+        // Sprite plane assignment uses index % 4, alternating through the four axes.
+        // Manual mode adds the icon at a neutral slot for the user to drag into place.
+        val angle = if (autoPlacement) (pageItems * 2.3999632f) % (Math.PI.toFloat() * 2f) else 0f
+        val orbit = if (autoPlacement) (.20f + (pageItems % 5) * .06f).coerceIn(.20f, .44f) else .30f
         items.add(OrbitalItem(app, angle, orbit, page))
         saveLayout()
         onWorkspaceChanged()
@@ -180,6 +185,14 @@ class AtomWorkspaceView(
     fun removeApp(app: LauncherApp) {
         items.removeAll { it.app.packageName == app.packageName && it.app.className == app.className }
         saveLayout(); onWorkspaceChanged(); invalidate()
+    }
+
+    fun isAutoPlacementEnabled(): Boolean = autoPlacement
+
+    fun togglePlacementMode(): Boolean {
+        autoPlacement = !autoPlacement
+        prefs.edit().putBoolean("auto_placement_v1", autoPlacement).apply()
+        return autoPlacement
     }
 
     fun rotateWithCore(dx: Float, dy: Float) = Unit
@@ -297,12 +310,18 @@ class AtomWorkspaceView(
                 lastTouchX = event.x
                 lastTouchY = event.y
                 selected = null
+                movedSinceDown = false
+                val hitIcon = items.firstOrNull { it.page == page && it.rect.contains(event.x, event.y) }
+                // Core owns drags inside its visible hit area; nearby/overlapping
+                // orbital labels must not steal a rotation gesture.
                 touchOwner = when {
-                    items.firstOrNull { it.page == page && it.rect.contains(event.x, event.y) } != null -> TouchOwner.ICON
                     isCoreAt(event.x, event.y) -> TouchOwner.CORE
+                    hitIcon != null -> TouchOwner.ICON
                     else -> TouchOwner.BACKGROUND
                 }
-                if (touchOwner == TouchOwner.ICON) selected = items.firstOrNull { it.page == page && it.rect.contains(event.x, event.y) }
+                if (touchOwner == TouchOwner.ICON) selected = hitIcon
+                dragStartAngle = selected?.angle ?: 0f
+                dragStartOrbit = selected?.orbit ?: .30f
                 dragging = false
                 iconOptionsOpened = false
                 gestureDetector.onTouchEvent(event)
@@ -310,7 +329,10 @@ class AtomWorkspaceView(
             }
             MotionEvent.ACTION_MOVE -> {
                 if (selected == null) {
-                    if (touchOwner == TouchOwner.CORE) onRotateCore(event.x - lastTouchX, event.y - lastTouchY)
+                    val moveDx = event.x - lastTouchX
+                    val moveDy = event.y - lastTouchY
+                    if (abs(event.x - downX) + abs(event.y - downY) > 8f * density) movedSinceDown = true
+                    if (touchOwner == TouchOwner.CORE) onRotateCore(moveDx, moveDy)
                     lastTouchX = event.x
                     lastTouchY = event.y
                     gestureDetector.onTouchEvent(event)
@@ -319,15 +341,15 @@ class AtomWorkspaceView(
                 if (!dragging) gestureDetector.onTouchEvent(event)
                 val dx = event.x - downX
                 val dy = event.y - downY
-                if (abs(dx) + abs(dy) > 24f * density) {
+                if (abs(dx) + abs(dy) > 8f * density) {
                     dragging = true
+                    movedSinceDown = true
                     val item = selected!!
-                    val cx = width * .5f
-                    val cy = height * .49f
-                    val x = event.x - cx
-                    val y = (event.y - cy) / .57f
-                    item.angle = atan2(y, x)
-                    item.orbit = (sqrt(x * x + y * y) / min(width, height)).coerceIn(.20f, .44f)
+                    val dimension = min(width, height).coerceAtLeast(1).toFloat()
+                    // Tangential drag sensitivity is intentionally damped; vertical
+                    // motion adjusts orbit radius instead of snapping to finger coordinates.
+                    item.angle = dragStartAngle + (dx / dimension) * (Math.PI.toFloat() * 2f) * .45f
+                    item.orbit = (dragStartOrbit - (dy / dimension) * .30f).coerceIn(.20f, .44f)
                     onWorkspaceNodeDragged(item.app.packageName + "/" + item.app.className, item.angle, item.orbit, item.page)
                     item.rect.offsetTo(event.x - item.rect.width() / 2f, event.y - item.rect.height() / 2f)
                     invalidate()
@@ -348,7 +370,12 @@ class AtomWorkspaceView(
                         downY > height - 112f * density &&
                         downX < width * .38f
                     when {
-                        touchOwner == TouchOwner.CORE -> gestureDetector.onTouchEvent(event)
+                        touchOwner == TouchOwner.CORE -> {
+                            if (!movedSinceDown) {
+                                val tapIcon = items.firstOrNull { it.page == page && it.rect.contains(event.x, event.y) }
+                                if (tapIcon != null) launch(tapIcon.app) else gestureDetector.onTouchEvent(event)
+                            }
+                        }
                         horizontalSwipe -> changePage(if (dx < 0f) 1 else -1)
                         verticalSwipe -> onOpenDrawer()
                         else -> gestureDetector.onTouchEvent(event)
