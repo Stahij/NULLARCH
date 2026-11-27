@@ -39,6 +39,8 @@ class AtomWorkspaceView(
     private val onAppOptions: (LauncherApp) -> Unit,
     private val onRotateCore: (Float, Float) -> Unit
 ) : View(context) {
+    private enum class TouchOwner { NONE, CORE, ICON, BACKGROUND }
+
     private data class OrbitalItem(
         val app: LauncherApp,
         var angle: Float,
@@ -69,6 +71,7 @@ class AtomWorkspaceView(
     private var lastTouchX = 0f
     private var lastTouchY = 0f
     private var selected: OrbitalItem? = null
+    private var touchOwner = TouchOwner.NONE
     private var dragging = false
     private var downAt = 0L
     private var labGestureTriggered = false
@@ -245,6 +248,7 @@ class AtomWorkspaceView(
         if (!labGestureTriggered && event.pointerCount >= 5 && (event.actionMasked == MotionEvent.ACTION_POINTER_DOWN || event.actionMasked == MotionEvent.ACTION_MOVE)) {
             labGestureTriggered = true
             selected = null
+            touchOwner = TouchOwner.NONE
             dragging = false
             onOpenLab()
             return true
@@ -258,6 +262,11 @@ class AtomWorkspaceView(
                 lastTouchX = event.x
                 lastTouchY = event.y
                 selected = items.firstOrNull { it.page == page && it.rect.contains(event.x, event.y) }
+                touchOwner = when {
+                    selected != null -> TouchOwner.ICON
+                    isCoreAt(event.x, event.y) -> TouchOwner.CORE
+                    else -> TouchOwner.BACKGROUND
+                }
                 dragging = false
                 iconOptionsOpened = false
                 gestureDetector.onTouchEvent(event)
@@ -265,7 +274,7 @@ class AtomWorkspaceView(
             }
             MotionEvent.ACTION_MOVE -> {
                 if (selected == null) {
-                    if (downY < height - 68f * density && !(downY > height - 112f * density && downX < width * .38f)) onRotateCore(event.x - lastTouchX, event.y - lastTouchY)
+                    if (touchOwner == TouchOwner.CORE) onRotateCore(event.x - lastTouchX, event.y - lastTouchY)
                     lastTouchX = event.x
                     lastTouchY = event.y
                     gestureDetector.onTouchEvent(event)
@@ -294,12 +303,15 @@ class AtomWorkspaceView(
                     val dx = event.x - downX
                     val dy = event.y - downY
                     val inPageGestureZone = downY >= height - 68f * density
-                    val horizontalSwipe = inPageGestureZone && abs(dx) > 42f * density && abs(dx) > abs(dy)
-                    val verticalSwipe = dy < -38f * density &&
+                    val horizontalSwipe = touchOwner == TouchOwner.BACKGROUND &&
+                        inPageGestureZone && abs(dx) > 42f * density && abs(dx) > abs(dy)
+                    val verticalSwipe = touchOwner == TouchOwner.BACKGROUND &&
+                        dy < -38f * density &&
                         abs(dy) > abs(dx) &&
                         downY > height - 112f * density &&
                         downX < width * .38f
                     when {
+                        touchOwner == TouchOwner.CORE -> gestureDetector.onTouchEvent(event)
                         horizontalSwipe -> changePage(if (dx < 0f) 1 else -1)
                         verticalSwipe -> onOpenDrawer()
                         else -> gestureDetector.onTouchEvent(event)
@@ -310,6 +322,7 @@ class AtomWorkspaceView(
                     if (dragging) saveLayout()
                 }
                 selected = null
+                touchOwner = TouchOwner.NONE
                 dragging = false
                 iconOptionsOpened = false
                 return true
@@ -318,6 +331,7 @@ class AtomWorkspaceView(
                 labGestureTriggered = false
                 if (selected == null) gestureDetector.onTouchEvent(event)
                 selected = null
+                touchOwner = TouchOwner.NONE
                 dragging = false
                 return true
             }
