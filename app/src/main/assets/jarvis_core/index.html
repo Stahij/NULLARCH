@@ -523,15 +523,16 @@
           const a = (i / 128) * Math.PI * 2;
           points.push(new THREE.Vector3(Math.cos(a) * config.radius, Math.sin(a) * config.radius * 0.72, 0));
         }
-        const geometry = new THREE.BufferGeometry().setFromPoints(points);
-        const material = new THREE.LineBasicMaterial({
-          color: 0x61dfff, transparent: true, opacity: 0.48,
-          depthTest: true, depthWrite: false, toneMapped: false
+        const curve = new THREE.CatmullRomCurve3(points, true, 'centripetal');
+        const geometry = new THREE.TubeGeometry(curve, 160, 0.012, 6, true);
+        const material = new THREE.MeshBasicMaterial({
+          color: 0x61dfff, transparent: true, opacity: 0.92,
+          depthTest: false, depthWrite: false, toneMapped: false
         });
-        const line = new THREE.LineLoop(geometry, material);
+        const line = new THREE.Mesh(geometry, material);
         line.name = 'orbit-preview-' + config.name;
         line.frustumCulled = false;
-        line.renderOrder = 1;
+        line.renderOrder = 20;
         return line;
       }
       function updateOrbitPreview(config) {
