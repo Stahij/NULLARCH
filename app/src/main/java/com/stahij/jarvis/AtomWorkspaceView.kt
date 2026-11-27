@@ -1,12 +1,16 @@
 package com.stahij.jarvis
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Rect
 import android.graphics.RectF
+import android.util.Base64
 import android.graphics.drawable.Drawable
 import android.os.SystemClock
+import java.io.ByteArrayOutputStream
 import android.view.MotionEvent
 import android.view.GestureDetector
 import android.view.View
@@ -37,7 +41,8 @@ class AtomWorkspaceView(
     private val onOpenDrawer: () -> Unit,
     private val onOpenLab: () -> Unit,
     private val onAppOptions: (LauncherApp) -> Unit,
-    private val onRotateCore: (Float, Float) -> Unit
+    private val onRotateCore: (Float, Float) -> Unit,
+    private val onWorkspaceChanged: () -> Unit
 ) : View(context) {
     private enum class TouchOwner { NONE, CORE, ICON, BACKGROUND }
 
@@ -60,6 +65,7 @@ class AtomWorkspaceView(
         typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
     }
     private var page = 0
+    val currentPage: Int get() = page
     private var pageCount = 1
     private var running = true
     private var motionEnabled = true
@@ -161,26 +167,79 @@ class AtomWorkspaceView(
         val orbit = (.25f + (pageItems % 3) * .075f).coerceIn(.20f, .44f)
         items.add(OrbitalItem(app, angle, orbit, page))
         saveLayout()
+        onWorkspaceChanged()
         invalidate()
         return true
     }
 
-    fun removeApp(app: LauncherApp) { items.removeAll { it.app.packageName == app.packageName && it.app.className == app.className }; saveLayout(); invalidate() }
-
-    fun rotateWithCore(dx: Float, dy: Float) {
-        targetCoreRotationOffset += dx * 0.0065f
-        targetCoreTiltOffset = (targetCoreTiltOffset + dy * 0.0018f).coerceIn(-0.42f, 0.42f)
-        invalidate()
+    fun removeApp(app: LauncherApp) {
+        items.removeAll { it.app.packageName == app.packageName && it.app.className == app.className }
+        saveLayout(); onWorkspaceChanged(); invalidate()
     }
 
-    fun setLabIconScale(value: Float) { iconScale = value.coerceIn(.65f, 1.5f); prefs.edit().putFloat("icon_scale", iconScale).apply(); invalidate() }
-    fun setLabOrbitScale(value: Float) { orbitScale = value.coerceIn(.65f, 1.45f); prefs.edit().putFloat("orbit_scale", orbitScale).apply(); invalidate() }
+    fun rotateWithCore(dx: Float, dy: Float) = Unit
+
+    fun setLabIconScale(value: Float) { iconScale = value.coerceIn(.65f, 1.5f); prefs.edit().putFloat("icon_scale", iconScale).apply() }
+    fun setLabOrbitScale(value: Float) { orbitScale = value.coerceIn(.65f, 1.45f); prefs.edit().putFloat("orbit_scale", orbitScale).apply() }
 
     fun changePage(delta: Int) {
         if (delta > 0 && page == pageCount - 1) pageCount++
         page = (page + delta).coerceIn(0, pageCount - 1)
         prefs.edit().putInt("current_page_v2", page).putInt("page_count_v2", pageCount).apply()
+        onWorkspaceChanged()
         invalidate()
+    }
+
+    fun workspaceAppsJson(): String {
+        val array = org.json.JSONArray()
+        items.forEach { item ->
+            val drawable = item.app.icon
+            val bitmap = Bitmap.createBitmap(128, 128, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+            val oldBounds = Rect(drawable.bounds)
+            val oldAlpha = drawable.alpha
+            drawable.setBounds(0, 0, 128, 128)
+            drawable.alpha = 255
+            drawable.draw(canvas)
+            drawable.bounds = oldBounds
+            drawable.alpha = oldAlpha
+            val bytes = ByteArrayOutputStream()
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, bytes)
+            bitmap.recycle()
+            array.put(org.json.JSONObject().apply {
+                put("id", item.app.packageName + "/" + item.app.className)
+                put("label", item.app.label)
+                put("packageName", item.app.packageName)
+                put("className", item.app.className)
+                put("angle", item.angle.toDouble())
+                put("orbit", item.orbit.toDouble())
+                put("page", item.page)
+                put("icon", Base64.encodeToString(bytes.toByteArray(), Base64.NO_WRAP))
+            })
+        }
+        return array.toString()
+    }
+
+    fun updateWebGlNodePositions(json: String) {
+        post {
+            try {
+                val array = org.json.JSONArray(json)
+                for (i in 0 until array.length()) {
+                    val node = array.optJSONObject(i) ?: continue
+                    val id = node.optString("id")
+                    val item = items.firstOrNull { it.app.packageName + "/" + it.app.className == id } ?: continue
+                    if (!node.optBoolean("visible", false)) {
+                        item.rect.setEmpty()
+                    } else {
+                        val x = node.optDouble("x", -1000.0).toFloat()
+                        val y = node.optDouble("y", -1000.0).toFloat()
+                        val w = node.optDouble("w", 0.0).toFloat().coerceIn(24f * density, 140f * density)
+                        val h = node.optDouble("h", 0.0).toFloat().coerceIn(28f * density, 170f * density)
+                        item.rect.set(x - w * .5f, y - h * .5f, x + w * .5f, y + h * .5f)
+                    }
+                }
+            } catch (_: Exception) { }
+        }
     }
 
     // A tap on the center freezes orbital motion at the saved base positions.
@@ -200,74 +259,9 @@ class AtomWorkspaceView(
         invalidate()
     }
 
+    // Android now owns interaction only; app icons are rendered in the WebGL scene.
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        val w = width.toFloat()
-        val h = height.toFloat()
-        if (w <= 0f || h <= 0f) return
-        val cx = w * .5f
-        val cy = h * .49f
-        val base = min(w, h)
-        val now = SystemClock.uptimeMillis()
-        if (running) motionPhase += ((now - lastMotionFrameMs).coerceAtLeast(0L) / 1000f) * .14f
-        lastMotionFrameMs = now
-        val follow = if (running) .34f else .55f
-        coreRotationOffset += (targetCoreRotationOffset - coreRotationOffset) * follow
-        coreTiltOffset += (targetCoreTiltOffset - coreTiltOffset) * follow
-
-        val projected = items.filter { it.page == page }.map { item ->
-            val angle = item.angle + motionPhase + coreRotationOffset
-            val radius = base * item.orbit * orbitScale
-            val c = cos(angle.toDouble()).toFloat()
-            val sn = sin(angle.toDouble()).toFloat()
-            val x = cx + c * radius
-            val y = cy + (sn * .57f - c * coreTiltOffset * .35f) * radius
-            val depth = (sn + 1f) * .5f
-            Triple(item, x, y) to depth
-        }.sortedBy { it.second }
-
-        projected.forEach { (entry, depth) ->
-            val (item, x, y) = entry
-            val radius = base * item.orbit * orbitScale
-            val scale = .72f + depth * .38f
-            val iconSize = 34f * density * scale * iconScale
-            // App icons are drawn by the native overlay, not the WebGL depth buffer.
-            // Mask back-side icons across the core silhouette (including their badge)
-            // so they cannot appear pasted over the sphere.
-            val coreRx = base * .22f
-            val coreRy = base * .22f
-            val iconPad = iconSize * .72f
-            val maskRx = coreRx + iconPad
-            val maskRy = coreRy + iconPad
-            val dxCore = x - cx
-            val dyCore = y - cy
-            val overlapsCore = (dxCore * dxCore) / (maskRx * maskRx) +
-                (dyCore * dyCore) / (maskRy * maskRy) < 1f
-            val behindCore = depth < .5f && overlapsCore
-            if (behindCore) {
-                item.rect.setEmpty()
-                return@forEach
-            }
-            val alpha = (155 + depth * 100).toInt()
-            paint.color = Color.argb(alpha, 12, 30, 48)
-            paint.style = Paint.Style.FILL
-            canvas.drawCircle(x, y, iconSize * .67f, paint)
-            paint.color = Color.argb(90 + (depth * 90).toInt(), 80, 203, 239)
-            paint.style = Paint.Style.STROKE
-            paint.strokeWidth = 1.1f * density
-            canvas.drawCircle(x, y, iconSize * .67f, paint)
-            paint.style = Paint.Style.FILL
-            val rect = RectF(x - iconSize / 2f, y - iconSize / 2f, x + iconSize / 2f, y + iconSize / 2f)
-            item.rect.set(rect)
-            val oldAlpha = item.app.icon.alpha
-            item.app.icon.alpha = alpha
-            item.app.icon.setBounds(rect.left.toInt(), rect.top.toInt(), rect.right.toInt(), rect.bottom.toInt())
-            item.app.icon.draw(canvas)
-            item.app.icon.alpha = oldAlpha
-            textPaint.alpha = alpha
-            canvas.drawText(item.app.label.take(16), x, y + iconSize * .78f + 12f * density, textPaint)
-        }
-        if (running) postInvalidateOnAnimation()
     }
 
     private fun isCoreAt(x: Float, y: Float): Boolean {
@@ -355,7 +349,7 @@ class AtomWorkspaceView(
                 } else {
                     if (!dragging && !iconOptionsOpened) selected?.let { if (SystemClock.uptimeMillis() - downAt >= 450L) onAppOptions(it.app) else launch(it.app) }
                     if (!dragging) gestureDetector.onTouchEvent(event)
-                    if (dragging) saveLayout()
+                    if (dragging) { saveLayout(); onWorkspaceChanged() }
                 }
                 selected = null
                 touchOwner = TouchOwner.NONE
