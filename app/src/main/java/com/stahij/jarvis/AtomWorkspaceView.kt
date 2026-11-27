@@ -42,7 +42,8 @@ class AtomWorkspaceView(
     private val onOpenLab: () -> Unit,
     private val onAppOptions: (LauncherApp) -> Unit,
     private val onRotateCore: (Float, Float) -> Unit,
-    private val onWorkspaceChanged: () -> Unit
+    private val onWorkspaceChanged: () -> Unit,
+    private val onWorkspaceNodeDragged: (String, Float, Float, Int) -> Unit
 ) : View(context) {
     private enum class TouchOwner { NONE, CORE, ICON, BACKGROUND }
 
@@ -292,8 +293,8 @@ class AtomWorkspaceView(
                 lastTouchY = event.y
                 selected = null
                 touchOwner = when {
-                    isCoreAt(event.x, event.y) -> TouchOwner.CORE
                     items.firstOrNull { it.page == page && it.rect.contains(event.x, event.y) } != null -> TouchOwner.ICON
+                    isCoreAt(event.x, event.y) -> TouchOwner.CORE
                     else -> TouchOwner.BACKGROUND
                 }
                 if (touchOwner == TouchOwner.ICON) selected = items.firstOrNull { it.page == page && it.rect.contains(event.x, event.y) }
@@ -322,6 +323,7 @@ class AtomWorkspaceView(
                     val y = (event.y - cy) / .57f
                     item.angle = atan2(y, x)
                     item.orbit = (sqrt(x * x + y * y) / min(width, height)).coerceIn(.20f, .44f)
+                    onWorkspaceNodeDragged(item.app.packageName + "/" + item.app.className, item.angle, item.orbit, item.page)
                     item.rect.offsetTo(event.x - item.rect.width() / 2f, event.y - item.rect.height() / 2f)
                     invalidate()
                 }
