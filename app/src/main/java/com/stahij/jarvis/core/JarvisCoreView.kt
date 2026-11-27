@@ -5,6 +5,7 @@ import android.content.Context
 import android.graphics.Color
 import android.util.AttributeSet
 import android.view.ViewGroup
+import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -15,6 +16,17 @@ class JarvisCoreView @JvmOverloads constructor(context: Context, attrs: Attribut
     private val webView = WebView(context)
     val bridge = JarvisCoreBridge(webView)
     private var destroyed = false
+    private var nodePositionsListener: ((String) -> Unit)? = null
+    private val androidJsBridge = object {
+        @JavascriptInterface
+        fun onNodePositions(json: String) {
+            post { nodePositionsListener?.invoke(json) }
+        }
+    }
+
+    fun setNodePositionsListener(listener: ((String) -> Unit)?) {
+        nodePositionsListener = listener
+    }
 
     init {
         setBackgroundColor(Color.TRANSPARENT)
@@ -23,6 +35,7 @@ class JarvisCoreView @JvmOverloads constructor(context: Context, attrs: Attribut
             setBackgroundColor(Color.TRANSPARENT)
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = false
+            addJavascriptInterface(androidJsBridge, "AndroidLauncher")
             settings.allowFileAccess = true
             settings.allowContentAccess = false
             isVerticalScrollBarEnabled = false
